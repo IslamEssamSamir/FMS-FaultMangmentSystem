@@ -1,0 +1,36 @@
+@model IncidentManagementSystem.ViewModels.LoginViewModel
+
+@{
+    ViewData["Title"] = "تسجيل الدخول";
+}
+
+<section class="login-panel">
+    <div class="login-heading">
+        <span class="welcome-kicker">دخول آمن</span>
+        <h1>تسجيل الدخول</h1>
+        <p>أدخل بيانات حسابك للوصول إلى خدمات النظام.</p>
+    </div>
+    <form asp-action="Login" method="post" class="login-form">
+            <input asp-for="ReturnUrl" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label">البريد الإلكتروني</label>
+                <input asp-for="Email" class="form-control" autocomplete="username" dir="ltr" />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">كلمة المرور</label>
+                <input asp-for="Password" class="form-control" autocomplete="current-password" />
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+            <div class="form-check mb-3">
+                <input asp-for="RememberMe" class="form-check-input" />
+                <label asp-for="RememberMe" class="form-check-label">تذكرني</label>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">دخول</button>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

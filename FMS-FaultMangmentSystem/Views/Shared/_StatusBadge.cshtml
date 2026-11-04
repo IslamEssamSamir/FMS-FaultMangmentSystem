@@ -1,0 +1,13 @@
+@using IncidentManagementSystem.Models.Enums
+@model IncidentStatus
+@{
+    var (label, style) = Model switch
+    {
+        IncidentStatus.Incoming => ("وارد", "status-incoming"),
+        IncidentStatus.Open => ("قيد المعالجة", "status-open"),
+        IncidentStatus.Resolved => ("تم الحل", "status-resolved"),
+        IncidentStatus.Closed => ("مغلق", "status-closed"),
+        _ => ("غير معروف", "status-unknown")
+    };
+}
+<span class="status-badge @style">@label</span>

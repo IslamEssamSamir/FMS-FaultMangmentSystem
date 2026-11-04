@@ -1,0 +1,16 @@
+@{
+    var modalId = ViewData["ModalId"]?.ToString() ?? "confirmationModal";
+    var title = ViewData["Title"]?.ToString() ?? "تأكيد الإجراء";
+    var message = ViewData["Message"]?.ToString() ?? "هل أنت متأكد من تنفيذ هذا الإجراء؟";
+    var confirmText = ViewData["ConfirmText"]?.ToString() ?? "تأكيد";
+    var confirmClass = ViewData["ConfirmClass"]?.ToString() ?? "btn-danger";
+}
+<div class="modal fade" id="@modalId" tabindex="-1" aria-labelledby="@(modalId + "Label")" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title fs-5" id="@(modalId + "Label")">@title</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button></div>
+            <div class="modal-body">@message</div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button><button type="button" class="btn @confirmClass" data-confirm-action>@confirmText</button></div>
+        </div>
+    </div>
+</div>

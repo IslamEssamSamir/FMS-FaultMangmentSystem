@@ -1,0 +1,38 @@
+@model System.Collections.Generic.IReadOnlyList<IncidentManagementSystem.ViewModels.IncidentListItemViewModel>
+@{
+    ViewData["Title"] = "البلاغات الواردة";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">مراجعة المشرف</span><h1>البلاغات الواردة</h1><p>البلاغات التي ما زالت في حالة «وارد» وتحتاج إلى توجيه أو مراجعة.</p></div>
+</div>
+
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+
+<div class="table-responsive form-panel">
+    <table class="table align-middle">
+        <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>القسم الحالي</th><th>تاريخ التسجيل</th><th></th></tr></thead>
+        <tbody>
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="5">لا توجد بلاغات واردة حالياً.</td></tr>
+        }
+        else
+        {
+            @foreach (var incident in Model)
+            {
+                <tr>
+                    <td>@incident.IncidentNumber</td>
+                    <td>@incident.Title</td>
+                    <td>@incident.CurrentDepartmentName</td>
+                    <td>@incident.CreatedAt.ToLocalTime().ToString("g")</td>
+                    <td><a asp-controller="Incidents" asp-action="Details" asp-route-id="@incident.Id" class="btn btn-sm btn-outline-primary">عرض البلاغ</a></td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>

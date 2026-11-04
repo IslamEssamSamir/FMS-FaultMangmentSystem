@@ -1,0 +1,11 @@
+@model IncidentManagementSystem.ViewModels.DepartmentListViewModel
+@{ ViewData["Title"] = "الأقسام"; }
+<div class="page-heading"><div><span class="welcome-kicker">الإدارة التنظيمية</span><h1>إدارة الأقسام</h1><p>عرض الأقسام وتحديث خصائص استقبال الأعطال.</p></div><a asp-action="Create" class="btn btn-primary">إضافة قسم</a></div>
+@if (TempData["SuccessMessage"] is string success) { <partial name="_Alert" model="success" view-data="@(new ViewDataDictionary(ViewData) { ["Style"] = "success" })" /> }
+@if (TempData["ErrorMessage"] is string error) { <partial name="_Alert" model="error" view-data="@(new ViewDataDictionary(ViewData) { ["Style"] = "danger" })" /> }
+<form method="get" class="search-toolbar"><label class="visually-hidden" for="search">البحث عن قسم</label><input id="search" name="search" value="@Model.Search" class="form-control" placeholder="ابحث باسم القسم أو الوصف" /><button class="btn btn-primary" type="submit">بحث</button>@if (!string.IsNullOrWhiteSpace(Model.Search)) { <a asp-action="Index" class="btn btn-light">مسح</a> }</form>
+<div class="table-responsive data-table-wrap"><table class="table data-table"><caption class="visually-hidden">قائمة الأقسام</caption><thead><tr><th>القسم</th><th>الوصف</th><th>استقبال الأعطال</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>
+@if (Model.Departments.Count == 0) { <tr><td class="table-empty" colspan="5">لا توجد أقسام مطابقة.</td></tr> }
+@foreach (var department in Model.Departments) { <tr><td class="fw-semibold">@department.Name</td><td>@(department.Description ?? "—")</td><td>@(department.IsIncidentReceivingDepartment ? "نعم" : "لا")</td><td><span class="status-badge @(department.IsActive ? "status-resolved" : "status-closed")">@(department.IsActive ? "نشط" : "غير نشط")</span></td><td class="table-actions"><a asp-action="Details" asp-route-id="@department.Id" class="btn btn-sm btn-light">التفاصيل</a><a asp-action="Edit" asp-route-id="@department.Id" class="btn btn-sm btn-outline-secondary">تعديل</a></td></tr> }
+</tbody></table></div>
+<partial name="_Pagination" model="@(new IncidentManagementSystem.ViewModels.PaginationViewModel { CurrentPage = Model.Page, TotalPages = Model.TotalPages, ActionUrl = Url.Action("Index") ?? "", PageParameter = "page", Search = Model.Search })" />

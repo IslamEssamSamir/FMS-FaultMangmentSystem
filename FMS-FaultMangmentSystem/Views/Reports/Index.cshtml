@@ -1,0 +1,60 @@
+@using IncidentManagementSystem.Models.Enums
+@model IncidentManagementSystem.ViewModels.IncidentReportsPageViewModel
+@{
+    ViewData["Title"] = "تقارير البلاغات";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">تحليل البيانات</span><h1>تقارير البلاغات</h1><p>تعرض التقارير البيانات التي تسمح بها صلاحيات حسابك فقط.</p></div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<section class="form-panel mb-4">
+    <h2 class="h5">تصفية التقارير</h2>
+    <form asp-action="Index" method="get" class="row g-3">
+        <div class="col-12 col-md-4"><label for="FromDate" class="form-label">من تاريخ</label><input id="FromDate" name="FromDate" type="date" class="form-control" value="@Model.Report.Filter.FromDate?.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-12 col-md-4"><label for="ToDate" class="form-label">إلى تاريخ</label><input id="ToDate" name="ToDate" type="date" class="form-control" value="@Model.Report.Filter.ToDate?.ToString("yyyy-MM-dd")" /></div>
+        @if (Model.Departments.Count > 1)
+        {
+            <div class="col-12 col-md-4"><label for="DepartmentId" class="form-label">القسم الحالي</label><select id="DepartmentId" name="DepartmentId" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Departments) { <option value="@department.Id" selected="@(Model.Report.Filter.DepartmentId == department.Id)">@department.Name</option> }</select></div>
+        }
+        <div class="col-12"><button type="submit" class="btn btn-primary">عرض التقرير</button></div>
+    </form>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">إجمالي البلاغات</h2><p class="display-6 mb-0">@Model.Report.TotalIncidents</p></div></section></div>
+    <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">البلاغات التي تم حلها</h2><p class="display-6 mb-0">@Model.Report.ResolvedIncidents</p></div></section></div>
+    <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">متوسط مدة الحل (ساعة)</h2><p class="display-6 mb-0">@(Model.Report.AverageResolutionHours?.ToString("N1", System.Globalization.CultureInfo.GetCultureInfo("ar-EG")) ?? "—")</p></div></section></div>
+    <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">إجمالي التحويلات</h2><p class="display-6 mb-0">@Model.Report.TotalTransfers</p></div></section></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">البلاغات حسب الحالة</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>الحالة</th><th>العدد</th></tr></thead><tbody>
+        @if (Model.Report.ByStatus.Count == 0) { <tr><td colspan="2">لا توجد بيانات للفترة المحددة.</td></tr> }
+        @foreach (var item in Model.Report.ByStatus)
+        {
+            <tr><td>@(item.Status switch { IncidentStatus.Incoming => "وارد", IncidentStatus.Open => "مفتوح", IncidentStatus.Resolved => "تم الحل", IncidentStatus.Closed => "مغلق", _ => "غير معروف" })</td><td>@item.Count</td></tr>
+        }
+    </tbody></table></div></section></div>
+    <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">البلاغات حسب القسم الحالي</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>القسم</th><th>العدد</th></tr></thead><tbody>
+        @if (Model.Report.ByDepartment.Count == 0) { <tr><td colspan="2">لا توجد بيانات للفترة المحددة.</td></tr> }
+        @foreach (var item in Model.Report.ByDepartment) { <tr><td>@item.DepartmentName</td><td>@item.Count</td></tr> }
+    </tbody></table></div></section></div>
+    <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">البلاغات حسب تاريخ التسجيل</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>التاريخ</th><th>العدد</th></tr></thead><tbody>
+        @if (Model.Report.ByDate.Count == 0) { <tr><td colspan="2">لا توجد بيانات للفترة المحددة.</td></tr> }
+        @foreach (var item in Model.Report.ByDate) { <tr><td>@item.Date.ToString("yyyy/MM/dd")</td><td>@item.Count</td></tr> }
+    </tbody></table></div></section></div>
+    <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">إحصاءات التحويل حسب القسم</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>القسم</th><th>تحويلات واردة</th><th>تحويلات صادرة</th></tr></thead><tbody>
+        @if (Model.Report.TransfersByDepartment.Count == 0) { <tr><td colspan="3">لا توجد تحويلات للفترة المحددة.</td></tr> }
+        @foreach (var item in Model.Report.TransfersByDepartment) { <tr><td>@item.DepartmentName</td><td>@item.IncomingTransfers</td><td>@item.OutgoingTransfers</td></tr> }
+    </tbody></table></div></section></div>
+    <div class="col-12"><section class="form-panel"><h2 class="h5">إحصاءات رفض الحلول</h2><p>إجمالي الحلول المرفوضة: <strong>@Model.Report.RejectedResolutions</strong></p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>القسم الحالي</th><th>عدد مرات الرفض</th></tr></thead><tbody>
+        @if (Model.Report.RejectionsByDepartment.Count == 0) { <tr><td colspan="2">لا توجد حلول مرفوضة للفترة المحددة.</td></tr> }
+        @foreach (var item in Model.Report.RejectionsByDepartment) { <tr><td>@item.DepartmentName</td><td>@item.Count</td></tr> }
+    </tbody></table></div></section></div>
+</div>

@@ -1,0 +1,20 @@
+@model IncidentManagementSystem.ViewModels.TableViewModel
+<div class="table-responsive data-table-wrap">
+    <table class="table data-table">
+        <caption class="visually-hidden">@Model.Caption</caption>
+        <thead><tr>@foreach (var header in Model.Headers) { <th scope="col">@header</th> }</tr></thead>
+        <tbody>
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td class="table-empty" colspan="@Math.Max(Model.Headers.Count, 1)">لا توجد بيانات لعرضها</td></tr>
+            }
+            else
+            {
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>@foreach (var cell in row) { <td>@cell</td> }</tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

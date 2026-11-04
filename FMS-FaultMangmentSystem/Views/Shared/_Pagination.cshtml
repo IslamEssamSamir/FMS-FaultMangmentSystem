@@ -1,0 +1,17 @@
+@model IncidentManagementSystem.ViewModels.PaginationViewModel
+@{
+    var searchQuery = string.IsNullOrWhiteSpace(Model.Search) ? string.Empty : "&search=" + Uri.EscapeDataString(Model.Search);
+}
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="التنقل بين الصفحات" class="pagination-wrap">
+        <ul class="pagination">
+            <li class="page-item @((Model.CurrentPage <= 1) ? "disabled" : null)"><a class="page-link" aria-label="الصفحة السابقة" href="@(Model.ActionUrl + "?" + Model.PageParameter + "=" + Math.Max(1, Model.CurrentPage - 1) + searchQuery)">السابق</a></li>
+            @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+            {
+                <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)"><a class="page-link" aria-current="@(pageNumber == Model.CurrentPage ? "page" : null)" href="@(Model.ActionUrl + "?" + Model.PageParameter + "=" + pageNumber + searchQuery)">@pageNumber</a></li>
+            }
+            <li class="page-item @((Model.CurrentPage >= Model.TotalPages) ? "disabled" : null)"><a class="page-link" aria-label="الصفحة التالية" href="@(Model.ActionUrl + "?" + Model.PageParameter + "=" + Math.Min(Model.TotalPages, Model.CurrentPage + 1) + searchQuery)">التالي</a></li>
+        </ul>
+    </nav>
+}

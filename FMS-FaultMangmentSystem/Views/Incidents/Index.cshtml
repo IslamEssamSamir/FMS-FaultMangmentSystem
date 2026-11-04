@@ -1,0 +1,102 @@
+@using IncidentManagementSystem.Authorization
+@model IncidentManagementSystem.ViewModels.IncidentSearchPageViewModel
+@{
+    ViewData["Title"] = "قائمة البلاغات";
+}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.3.4/css/dataTables.dataTables.min.css" />
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">إدارة البلاغات</span><h1>قائمة البلاغات</h1><p>ابحث ضمن البلاغات المتاحة وفق صلاحيات حسابك.</p></div>
+    @if (User.HasClaim(Permissions.ClaimType, Permissions.SubmitComplaints))
+    {
+        <a asp-action="Create" class="btn btn-primary">تسجيل بلاغ</a>
+    }
+</div>
+
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+
+<section class="form-panel mb-4">
+    <h2 class="h5">تصفية البلاغات</h2>
+    <form id="incidentSearchFilters" class="row g-3">
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterNumber" class="form-label">رقم البلاغ</label><input id="filterNumber" class="form-control" maxlength="50" /></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterTitle" class="form-label">العنوان</label><input id="filterTitle" class="form-control" maxlength="200" /></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterStatus" class="form-label">الحالة</label><select id="filterStatus" class="form-select"><option value="">كل الحالات</option><option value="Incoming">وارد</option><option value="Open">مفتوح</option><option value="Resolved">تم الحل</option><option value="Closed">مغلق</option></select></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterDepartment" class="form-label">القسم</label><select id="filterDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Departments) { <option value="@department.Id">@department.Name</option> }</select></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterReportingDepartment" class="form-label">القسم المُبلّغ</label><select id="filterReportingDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.ReportingDepartments) { <option value="@department.Id">@department.Name</option> }</select></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterCurrentDepartment" class="form-label">القسم الحالي</label><select id="filterCurrentDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Departments) { <option value="@department.Id">@department.Name</option> }</select></div>
+        <div class="col-12 col-md-6"><label for="filterFromDate" class="form-label">من تاريخ التسجيل</label><input id="filterFromDate" type="date" class="form-control" /></div>
+        <div class="col-12 col-md-6"><label for="filterToDate" class="form-label">إلى تاريخ التسجيل</label><input id="filterToDate" type="date" class="form-control" /></div>
+        <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">تطبيق البحث</button><button type="reset" class="btn btn-light">مسح التصفية</button></div>
+    </form>
+</section>
+
+<div class="table-responsive form-panel">
+    <table id="incidentTable" class="table align-middle w-100" data-source="@Url.Action("DataTable")" data-details="@Url.Action("Details")">
+        <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الحالة</th><th>القسم المُبلّغ</th><th>القسم الحالي</th><th>تاريخ التسجيل</th><th>التفاصيل</th></tr></thead>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
+    <script>
+        $(function () {
+            const tableElement = document.getElementById("incidentTable");
+            const table = new DataTable(tableElement, {
+                processing: true,
+                serverSide: true,
+                pageLength: 25,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[5, "desc"]],
+                ajax: {
+                    url: tableElement.dataset.source,
+                    data: function (request) {
+                        request.incidentNumber = $("#filterNumber").val();
+                        request.title = $("#filterTitle").val();
+                        request.status = $("#filterStatus").val();
+                        request.departmentId = $("#filterDepartment").val();
+                        request.reportingDepartmentId = $("#filterReportingDepartment").val();
+                        request.currentDepartmentId = $("#filterCurrentDepartment").val();
+                        request.fromDate = $("#filterFromDate").val();
+                        request.toDate = $("#filterToDate").val();
+                    }
+                },
+                columns: [
+                    { data: "incidentNumber", render: DataTable.render.text() },
+                    { data: "title", render: DataTable.render.text() },
+                    { data: "status", render: function (value) { return ({ 0: "وارد", 1: "مفتوح", 2: "تم الحل", 3: "مغلق" })[value] ?? "غير معروف"; } },
+                    { data: "reportingDepartmentName", render: DataTable.render.text() },
+                    { data: "currentDepartmentName", render: DataTable.render.text() },
+                    { data: "createdAt", render: function (value, type) { return type === "display" ? new Date(value).toLocaleString("ar-EG") : value; } },
+                    { data: "id", orderable: false, searchable: false, render: function (id) { return '<a class="btn btn-sm btn-outline-primary" href="' + tableElement.dataset.details + '/' + Number(id) + '">التفاصيل</a>'; } }
+                ],
+                language: {
+                    emptyTable: "لا توجد بلاغات متاحة.",
+                    info: "عرض _START_ إلى _END_ من أصل _TOTAL_ بلاغات",
+                    infoEmpty: "لا توجد بلاغات لعرضها",
+                    infoFiltered: "(تمت التصفية من أصل _MAX_ بلاغًا)",
+                    lengthMenu: "عرض _MENU_ بلاغًا",
+                    loadingRecords: "جارٍ تحميل البلاغات...",
+                    processing: "جارٍ معالجة الطلب...",
+                    search: "بحث عام:",
+                    zeroRecords: "لم يتم العثور على نتائج مطابقة",
+                    paginate: { first: "الأول", last: "الأخير", next: "التالي", previous: "السابق" }
+                }
+            });
+
+            $("#incidentSearchFilters").on("submit", function (event) {
+                event.preventDefault();
+                table.ajax.reload();
+            });
+            $("#incidentSearchFilters").on("reset", function () {
+                setTimeout(function () { table.ajax.reload(); }, 0);
+            });
+        });
+    </script>
+}

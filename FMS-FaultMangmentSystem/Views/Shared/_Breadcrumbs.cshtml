@@ -1,0 +1,12 @@
+@{
+    var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var actionName = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var actionTitle = ViewData["Title"]?.ToString() ?? actionName;
+}
+<nav aria-label="مسار التنقل" class="breadcrumbs">
+    <a asp-controller="Home" asp-action="Index">الرئيسية</a>
+    @if (!string.Equals(controllerName, "Home", StringComparison.OrdinalIgnoreCase))
+    {
+        <span aria-hidden="true">/</span><span>@actionTitle</span>
+    }
+</nav>

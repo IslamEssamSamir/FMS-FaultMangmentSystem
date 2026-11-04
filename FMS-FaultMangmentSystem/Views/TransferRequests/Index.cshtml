@@ -1,0 +1,44 @@
+@model System.Collections.Generic.IReadOnlyList<IncidentManagementSystem.ViewModels.TransferRequestViewModel>
+@{
+    ViewData["Title"] = "طلبات التحويل";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">مراجعة المشرف</span><h1>طلبات التحويل</h1><p>طلبات التحويل المعلّقة بانتظار قرار المشرف.</p></div>
+</div>
+
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-warning" role="alert">@errorMessage</div>
+}
+
+<div class="table-responsive form-panel">
+    <table class="table align-middle">
+        <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>من قسم</th><th>القسم المطلوب</th><th>مقدم الطلب</th><th>التاريخ</th><th></th></tr></thead>
+        <tbody>
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="7">لا توجد طلبات تحويل معلّقة.</td></tr>
+        }
+        else
+        {
+            @foreach (var request in Model)
+            {
+                <tr>
+                    <td>@request.IncidentNumber</td>
+                    <td>@request.IncidentTitle</td>
+                    <td>@request.FromDepartmentName</td>
+                    <td>@request.RequestedTargetDepartmentName</td>
+                    <td>@request.RequestedByName</td>
+                    <td>@request.RequestDate.ToLocalTime().ToString("g")</td>
+                    <td><a asp-action="Review" asp-route-id="@request.Id" class="btn btn-sm btn-outline-primary">مراجعة الطلب</a></td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>

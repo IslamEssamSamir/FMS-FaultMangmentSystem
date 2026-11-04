@@ -1,0 +1,10 @@
+@model string
+@{
+    var style = ViewData["Style"]?.ToString() ?? "info";
+    var title = ViewData["Title"]?.ToString();
+}
+<div class="alert alert-@style alert-dismissible fade show" role="alert">
+    @if (!string.IsNullOrWhiteSpace(title)) { <strong>@title</strong> }
+    <span>@Model</span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+</div>

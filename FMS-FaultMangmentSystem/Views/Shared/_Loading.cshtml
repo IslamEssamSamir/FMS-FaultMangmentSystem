@@ -1,0 +1,7 @@
+@{
+    var message = ViewData["Message"]?.ToString() ?? "جارٍ تحميل البيانات...";
+}
+<div class="loading-state" role="status" aria-live="polite">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>@message</span>
+</div>

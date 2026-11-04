@@ -1,0 +1,85 @@
+@using IncidentManagementSystem.Authorization
+@using IncidentManagementSystem.Models.Enums
+@model IncidentManagementSystem.ViewModels.TransferRequestReviewPageViewModel
+@{
+    ViewData["Title"] = "مراجعة طلب التحويل";
+    var request = Model.Request;
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">مراجعة المشرف</span><h1>مراجعة طلب التحويل</h1><p>البلاغ رقم @request.IncidentNumber — @request.IncidentTitle</p></div>
+    <a asp-action="Index" class="btn btn-light">العودة إلى الطلبات</a>
+</div>
+
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<section class="form-panel mb-4">
+    <h2 class="h5">بيانات الطلب</h2>
+    <dl class="row">
+        <dt class="col-sm-3">حالة البلاغ</dt><dd class="col-sm-9">@request.IncidentStatus</dd>
+        <dt class="col-sm-3">القسم الحالي</dt><dd class="col-sm-9">@request.CurrentDepartmentName</dd>
+        <dt class="col-sm-3">القسم المُحيل</dt><dd class="col-sm-9">@request.FromDepartmentName</dd>
+        <dt class="col-sm-3">القسم المطلوب</dt><dd class="col-sm-9">@request.RequestedTargetDepartmentName</dd>
+        <dt class="col-sm-3">مقدم الطلب</dt><dd class="col-sm-9">@request.RequestedByName</dd>
+        <dt class="col-sm-3">تاريخ الطلب</dt><dd class="col-sm-9">@request.RequestDate.ToLocalTime().ToString("g")</dd>
+        <dt class="col-sm-3">سبب التحويل</dt><dd class="col-sm-9" style="white-space: pre-wrap">@request.Reason</dd>
+    </dl>
+</section>
+
+@if (request.IncidentStatus != IncidentStatus.Incoming)
+{
+    <div class="alert alert-warning" role="alert">تغيّرت حالة البلاغ. لا يمكن اعتماد الطلب أو رفضه إلا ما دام البلاغ وارداً.</div>
+}
+else
+{
+    <div class="row g-4">
+        @if (User.HasClaim(Permissions.ClaimType, Permissions.TransferIncidents))
+        {
+            <div class="col-12 col-xl-6">
+                <section class="form-panel h-100">
+                    <h2 class="h5">اعتماد التحويل</h2>
+                    <p>اختر القسم المستقبِل النهائي. قد يختلف عن القسم الذي طلبه الموظف.</p>
+                    <form asp-action="Approve" asp-route-id="@request.Id" method="post">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                        <div class="mb-3">
+                            <label asp-for="Approval.TargetDepartmentId" class="form-label">القسم المستقبِل المعتمد</label>
+                            <select asp-for="Approval.TargetDepartmentId" class="form-select">
+                                <option value="">اختر القسم</option>
+                                @foreach (var department in Model.ReceivingDepartments)
+                                {
+                                    <option value="@department.Id">@department.Name</option>
+                                }
+                            </select>
+                            <span asp-validation-for="Approval.TargetDepartmentId" class="text-danger"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Approval.Notes" class="form-label">ملاحظات المشرف (اختياري)</label>
+                            <textarea asp-for="Approval.Notes" class="form-control" rows="3" maxlength="2000"></textarea>
+                            <span asp-validation-for="Approval.Notes" class="text-danger"></span>
+                        </div>
+                        <button type="submit" class="btn btn-primary" disabled="@(Model.ReceivingDepartments.Count == 0)">اعتماد وتنفيذ التحويل</button>
+                    </form>
+                </section>
+            </div>
+        }
+        <div class="col-12 col-xl-6">
+            <section class="form-panel h-100">
+                <h2 class="h5">رفض الطلب</h2>
+                <form asp-action="Reject" asp-route-id="@request.Id" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    <div class="mb-3">
+                        <label asp-for="Rejection.ReviewNotes" class="form-label">ملاحظات الرفض (مطلوبة)</label>
+                        <textarea asp-for="Rejection.ReviewNotes" class="form-control" rows="4" maxlength="2000"></textarea>
+                        <span asp-validation-for="Rejection.ReviewNotes" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-outline-danger">رفض طلب التحويل</button>
+                </form>
+            </section>
+        </div>
+    </div>
+}
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

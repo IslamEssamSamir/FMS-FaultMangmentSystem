@@ -1,0 +1,32 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#14243a" />
+    <title>@ViewData["Title"] - نظام إدارة الأعطال</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/IncidentManagementSystem.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="app-shell">
+        <partial name="_Sidebar" />
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        <div class="app-main">
+            <partial name="_TopNavigation" />
+            <main role="main" class="content-area">
+                <partial name="_Breadcrumbs" />
+                <div class="content-container">
+                    @RenderBody()
+                </div>
+                <partial name="_Footer" />
+            </main>
+        </div>
+    </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

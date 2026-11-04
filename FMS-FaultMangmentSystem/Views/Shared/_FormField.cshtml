@@ -1,0 +1,13 @@
+@{
+    var name = ViewData["Name"]?.ToString() ?? string.Empty;
+    var label = ViewData["Label"]?.ToString() ?? name;
+    var type = ViewData["Type"]?.ToString() ?? "text";
+    var value = ViewData["Value"]?.ToString() ?? string.Empty;
+    var hint = ViewData["Hint"]?.ToString();
+}
+<div class="mb-3">
+    <label class="form-label" for="@name">@label <span class="field-required" aria-hidden="true">*</span></label>
+    <input class="form-control" id="@name" name="@name" type="@type" value="@value" aria-describedby="@(name + "-hint " + name + "-error")" />
+    @if (!string.IsNullOrWhiteSpace(hint)) { <div class="form-text" id="@(name + "-hint")">@hint</div> }
+    <span class="text-danger field-error" id="@(name + "-error")" data-valmsg-for="@name"></span>
+</div>

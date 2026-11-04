@@ -1,0 +1,28 @@
+<header class="topbar">
+    <div class="topbar-start">
+        <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="فتح أو إغلاق القائمة" aria-controls="appSidebar" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+        </button>
+        <div class="topbar-heading">
+            <span class="topbar-eyebrow">بوابة الخدمات الداخلية</span>
+            <span class="topbar-title">@ViewData["Title"]</span>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <button class="icon-button notification-button" type="button" aria-label="الإشعارات"><span aria-hidden="true">♧</span><span class="notification-dot"></span></button>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <div class="profile-menu">
+                <div class="profile-avatar" aria-hidden="true">@(User.Identity.Name?.FirstOrDefault().ToString().ToUpperInvariant() ?? "م")</div>
+                <div class="profile-details"><span class="profile-name">@User.Identity.Name</span><span class="profile-role">مستخدم النظام</span></div>
+                <form asp-controller="Account" asp-action="Logout" method="post">
+                    <button class="btn btn-outline-secondary btn-sm" type="submit">خروج</button>
+                </form>
+            </div>
+        }
+        else
+        {
+            <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-sm">تسجيل الدخول</a>
+        }
+    </div>
+</header>

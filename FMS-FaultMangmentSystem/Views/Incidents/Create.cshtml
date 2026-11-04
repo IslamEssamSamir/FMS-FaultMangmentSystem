@@ -1,0 +1,57 @@
+@using IncidentManagementSystem.Authorization
+@model IncidentManagementSystem.ViewModels.IncidentCreateViewModel
+@{
+    ViewData["Title"] = "تسجيل بلاغ";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">استقبال البلاغات</span><h1>تسجيل بلاغ</h1><p>أدخل تفاصيل البلاغ لتسجيله مبدئيًا.</p></div>
+</div>
+
+<div class="form-panel">
+    <form asp-action="Create" method="post">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="Title" class="form-label">عنوان البلاغ</label>
+            <input asp-for="Title" class="form-control" maxlength="200" />
+            <span asp-validation-for="Title" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Description" class="form-label">وصف البلاغ</label>
+            <textarea asp-for="Description" class="form-control" rows="5" maxlength="4000"></textarea>
+            <span asp-validation-for="Description" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">القسم المُبلّغ</label>
+            <input class="form-control" value="@(ViewBag.ReportingDepartmentName ?? "القسم التابع لك")" readonly />
+            <div class="form-text">يُحدَّد القسم المُبلّغ من حسابك ولا يمكن تغييره من هنا.</div>
+        </div>
+        @if (ViewBag.CanChooseReceivingDepartment == true)
+        {
+            <div class="mb-3">
+                <label asp-for="InitialReceivingDepartmentId" class="form-label">القسم المستقبِل الأولي (اختياري)</label>
+                <select asp-for="InitialReceivingDepartmentId" asp-items="ViewBag.ReceivingDepartments" class="form-select">
+                    <option value="">استخدم قسمي</option>
+                </select>
+                <span asp-validation-for="InitialReceivingDepartmentId" class="text-danger"></span>
+                <div class="form-text">تظهر الأقسام النشطة والمخصصة لاستقبال البلاغات فقط، ويتحقق الخادم من صحة الاختيار.</div>
+            </div>
+        }
+        else
+        {
+            <p class="form-text">سيُسجَّل هذا البلاغ ضمن القسم التابع لك.</p>
+        }
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">إرسال البلاغ</button>
+            @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewDepartmentIncidents) || User.HasClaim(Permissions.ClaimType, Permissions.ViewAllIncidents))
+            {
+                <a asp-action="Index" class="btn btn-light">إلغاء</a>
+            }
+            else
+            {
+                <a asp-controller="Home" asp-action="Index" class="btn btn-light">إلغاء</a>
+            }
+        </div>
+    </form>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

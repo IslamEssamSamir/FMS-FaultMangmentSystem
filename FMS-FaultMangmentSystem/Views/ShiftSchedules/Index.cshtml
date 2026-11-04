@@ -1,0 +1,34 @@
+@model IncidentManagementSystem.ViewModels.ShiftSchedulePageViewModel
+@using System.Globalization
+@{ ViewData["Title"] = "جدول النوبتجيات"; var culture = CultureInfo.GetCultureInfo("ar-EG"); }
+<div class="page-heading"><div><span class="welcome-kicker">تنظيم التغطية</span><h1>جدول النوبتجيات الأسبوعي</h1><p>الأسبوع يبدأ يوم السبت. الفترات الليلية تحتسب حتى اليوم التالي.</p></div><a asp-action="Definitions" class="btn btn-outline-secondary">تعريف فترات النوبة</a></div>
+@if (TempData["SuccessMessage"] is string success) { <partial name="_Alert" model="success" view-data="@(new ViewDataDictionary(ViewData) { ["Style"] = "success" })" /> }
+@if (TempData["ErrorMessage"] is string error) { <partial name="_Alert" model="error" view-data="@(new ViewDataDictionary(ViewData) { ["Style"] = "danger" })" /> }
+<div class="schedule-toolbar"><div class="week-switcher"><a asp-action="Index" asp-route-weekStartDate="@Model.PreviousWeekStart.ToString("yyyy-MM-dd")" class="btn btn-light">الأسبوع السابق</a><div class="week-current"><span>الأسبوع المحدد</span><strong>@Model.Schedule.WeekStartDate.ToString("yyyy/MM/dd") — @Model.Schedule.WeekStartDate.AddDays(6).ToString("yyyy/MM/dd")</strong></div><a asp-action="Index" asp-route-weekStartDate="@Model.NextWeekStart.ToString("yyyy-MM-dd")" class="btn btn-light">الأسبوع التالي</a><a asp-action="Index" asp-route-weekStartDate="@Model.CurrentWeekStart.ToString("yyyy-MM-dd")" class="btn btn-outline-primary">الأسبوع الحالي</a></div>
+<form method="get" class="department-filter"><input type="hidden" name="weekStartDate" value="@Model.Schedule.WeekStartDate.ToString("yyyy-MM-dd")" /><label for="departmentFilter" class="form-label">القسم</label><select id="departmentFilter" name="departmentId" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Schedule.Departments) { <option value="@department.Id" selected="@(Model.Schedule.DepartmentFilter == department.Id)">@department.Name</option> }</select><button class="btn btn-primary" type="submit">تطبيق</button></form></div>
+<section class="schedule-days">
+@for (var dayIndex = 0; dayIndex < 7; dayIndex++)
+{
+    var date = Model.Schedule.WeekStartDate.AddDays(dayIndex);
+    var assignments = Model.Schedule.Assignments.Where(item => item.ShiftDate == date).ToList();
+    <article class="schedule-day">
+        <header class="schedule-day-header"><div><span class="schedule-day-name">@date.ToString("dddd", culture)</span><span class="schedule-day-date">@date.ToString("yyyy/MM/dd")</span></div><span class="day-count">@assignments.Count إسناد</span></header>
+        @if (assignments.Count == 0) { <div class="schedule-empty">لا توجد إسنادات مسجلة لهذا اليوم.</div> }
+        else
+        {
+            <div class="table-responsive"><table class="table data-table schedule-table"><thead><tr><th>القسم</th><th>الفترة</th><th>الضابط</th><th>الوقت</th><th>إجراءات</th></tr></thead><tbody>
+            @foreach (var assignment in assignments)
+            {
+                <tr><td>@assignment.DepartmentName</td><td>@assignment.ShiftDefinitionName</td><td>@assignment.UserFullName</td><td dir="ltr">@assignment.StartTime.ToString("HH:mm") – @assignment.EndTime.ToString("HH:mm") @if (assignment.IsOvernight) { <span class="overnight-tag">اليوم التالي</span> }</td><td><button type="button" class="btn btn-sm btn-outline-secondary edit-assignment" data-id="@assignment.Id" data-date="@date.ToString("yyyy-MM-dd")" data-department="@assignment.DepartmentId" data-user="@assignment.UserId" data-definition="@assignment.ShiftDefinitionId">تعديل</button><form asp-action="RemoveAssignment" method="post" class="d-inline" data-confirm-target="#removeAssignmentConfirm"><input type="hidden" name="weekStartDate" value="@Model.Schedule.WeekStartDate.ToString("yyyy-MM-dd")" /><input type="hidden" name="assignmentId" value="@assignment.Id" /><input type="hidden" name="departmentId" value="@Model.Schedule.DepartmentFilter" /><button class="btn btn-sm btn-outline-danger" type="submit">إزالة</button></form></td></tr>
+            }
+            </tbody></table></div>
+        }
+        <button type="button" class="btn btn-sm btn-light add-assignment" data-date="@date.ToString("yyyy-MM-dd")">+ إسناد ضابط</button>
+    </article>
+}
+</section>
+<div class="form-panel assignment-panel" id="assignmentPanel"><div class="panel-heading"><div><span class="welcome-kicker">تحديث الجدول</span><h2>إسناد ضابط لفترة</h2></div><button type="button" class="btn btn-light" id="closeAssignmentPanel">إغلاق</button></div><div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div><form asp-action="SaveAssignment" method="post" id="assignmentForm"><input type="hidden" name="Assignment.WeekStartDate" value="@Model.Schedule.WeekStartDate.ToString("yyyy-MM-dd")" /><input type="hidden" name="Schedule.DepartmentFilter" value="@Model.Schedule.DepartmentFilter" />
+<input type="hidden" name="Assignment.AssignmentId" id="assignmentId" /><div class="assignment-fields"><div><label class="form-label" for="assignmentDate">تاريخ النوبة</label><input id="assignmentDate" name="Assignment.ShiftDate" type="date" class="form-control" min="@Model.Schedule.WeekStartDate.ToString("yyyy-MM-dd")" max="@Model.Schedule.WeekStartDate.AddDays(6).ToString("yyyy-MM-dd")" required /></div><div><label class="form-label" for="assignmentDepartment">القسم</label><select id="assignmentDepartment" name="Assignment.DepartmentId" class="form-select" required><option value="">اختر القسم</option>@foreach (var department in Model.Schedule.Departments) { <option value="@department.Id">@department.Name</option> }</select></div><div><label class="form-label" for="assignmentDefinition">فترة النوبة</label><select id="assignmentDefinition" name="Assignment.ShiftDefinitionId" class="form-select" required><option value="">اختر الفترة</option>@foreach (var definition in Model.Schedule.ShiftDefinitions) { <option value="@definition.Id">@definition.Name (@definition.StartTime–@definition.EndTime @(definition.IsOvernight ? "اليوم التالي" : ""))</option> }</select></div><div><label class="form-label" for="assignmentOfficer">الضابط المناوب</label><select id="assignmentOfficer" name="Assignment.UserId" class="form-select" required><option value="">اختر القسم أولاً</option></select></div></div><p class="schedule-hint" id="conflictHint">سيتم التحقق من تعارض الفترات الزمنية عند الحفظ.</p><div class="form-actions"><button type="submit" class="btn btn-primary">حفظ الإسناد</button></div></form></div>
+@{ ViewData["ModalId"] = "removeAssignmentConfirm"; ViewData["Title"] = "تأكيد إزالة الإسناد"; ViewData["Message"] = "سيتم إزالة هذا الإسناد من الجدول. هل تريد المتابعة؟"; ViewData["ConfirmText"] = "إزالة الإسناد"; ViewData["ConfirmClass"] = "btn-danger"; }
+<partial name="_ConfirmationModal" />
+@section Scripts { <script src="~/js/shift-schedule.js" asp-append-version="true"></script> }

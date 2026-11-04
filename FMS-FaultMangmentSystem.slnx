@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/FMS-FaultMangmentSystem/" />
+  <Project Path="FMS-FaultMangmentSystem/IncidentManagementSystem.csproj" />
+  <Project Path="IncidentManagementSystem.Tests/IncidentManagementSystem.Tests.csproj" />
+</Solution>
+

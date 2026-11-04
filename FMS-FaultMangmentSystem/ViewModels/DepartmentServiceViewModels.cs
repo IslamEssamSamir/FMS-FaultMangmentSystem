@@ -1,0 +1,28 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace IncidentManagementSystem.ViewModels;
+
+public class DepartmentCreateViewModel
+{
+    [Required, StringLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(1000)]
+    public string? Description { get; set; }
+
+    public bool IsIncidentReceivingDepartment { get; set; }
+}
+
+public class DepartmentUpdateViewModel : DepartmentCreateViewModel
+{
+}
+
+public class DepartmentViewModel
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsIncidentReceivingDepartment { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+}

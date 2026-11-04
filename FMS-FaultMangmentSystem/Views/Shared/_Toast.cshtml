@@ -1,0 +1,9 @@
+@model string
+@{
+    var title = ViewData["Title"]?.ToString() ?? "تنبيه";
+    var style = ViewData["Style"]?.ToString() ?? "primary";
+}
+<div class="toast app-toast" role="status" aria-live="polite" aria-atomic="true" data-bs-delay="5000">
+    <div class="toast-header"><span class="toast-mark bg-@style" aria-hidden="true"></span><strong class="me-auto">@title</strong><button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="إغلاق"></button></div>
+    <div class="toast-body">@Model</div>
+</div>

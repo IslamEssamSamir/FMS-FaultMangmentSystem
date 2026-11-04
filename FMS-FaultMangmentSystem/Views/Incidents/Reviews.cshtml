@@ -1,0 +1,60 @@
+@using IncidentManagementSystem.Authorization
+@using IncidentManagementSystem.Models.Enums
+@model IncidentManagementSystem.ViewModels.IncidentReviewPageViewModel
+@{
+    ViewData["Title"] = "مراجعة الحلول";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">مراجعة المشرف</span><h1>مراجعة الحلول</h1><p>البلاغات المحلولة بانتظار اعتماد الحل أو إعادتها إلى القسم المسؤول.</p></div>
+</div>
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-warning" role="alert">@errorMessage</div>
+}
+
+@if (Model.Incidents.Count == 0)
+{
+    <section class="form-panel"><p class="mb-0">لا توجد بلاغات محلولة بانتظار المراجعة.</p></section>
+}
+else
+{
+    @foreach (var incident in Model.Incidents)
+    {
+        <section class="form-panel mb-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div><span class="welcome-kicker">@incident.IncidentNumber</span><h2 class="h5">@incident.Title</h2></div>
+                <a asp-action="Details" asp-route-id="@incident.Id" class="btn btn-sm btn-outline-primary">تفاصيل البلاغ</a>
+            </div>
+            <dl class="row mt-3">
+                <dt class="col-sm-3">القسم المسؤول</dt><dd class="col-sm-9">@incident.CurrentDepartmentName</dd>
+                <dt class="col-sm-3">الموظف المسؤول</dt><dd class="col-sm-9">@incident.CurrentResponsibleUserName</dd>
+                <dt class="col-sm-3">تاريخ الحل</dt><dd class="col-sm-9">@incident.ResolvedAt?.ToLocalTime().ToString("g")</dd>
+                <dt class="col-sm-3">الحل النهائي</dt><dd class="col-sm-9" style="white-space: pre-wrap">@incident.FinalSolutionDescription</dd>
+                <dt class="col-sm-3">خطوات الحل</dt><dd class="col-sm-9" style="white-space: pre-wrap">@incident.ResolutionSteps</dd>
+            </dl>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <form asp-action="Review" asp-route-id="@incident.Id" method="post">
+                <div class="mb-3">
+                    <label class="form-label" for="Review_ReviewDecision_@incident.Id">قرار المراجعة</label>
+                    <select name="Review.ReviewDecision" class="form-select">
+                        <option value="Approved" selected="@(incident.Review.ReviewDecision == ReviewDecision.Approved)">اعتماد الحل وإغلاق البلاغ</option>
+                        <option value="Rejected" selected="@(incident.Review.ReviewDecision == ReviewDecision.Rejected)">رفض الحل وإعادته للقسم المسؤول</option>
+                    </select>
+                    <span class="text-danger">@Html.ValidationMessage("Review.ReviewDecision")</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">ملاحظات المراجعة (مطلوبة عند الرفض)</label>
+                    <textarea name="Review.ReviewNotes" class="form-control" rows="3" maxlength="2000">@incident.Review.ReviewNotes</textarea>
+                    <span class="text-danger">@Html.ValidationMessage("Review.ReviewNotes")</span>
+                </div>
+                <button type="submit" class="btn btn-primary">حفظ قرار المراجعة</button>
+            </form>
+        </section>
+    }
+}
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }
