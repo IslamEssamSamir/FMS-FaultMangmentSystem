@@ -10,63 +10,326 @@
         <div class="welcome-copy">
             <span class="welcome-kicker">بوابة الخدمات الداخلية</span>
             <h1>مرحباً بك في نظام إدارة الأعطال</h1>
-            <p>منصة موحدة لمتابعة الأعطال وتنظيم إجراءات المعالجة والتنسيق بين الأقسام.</p>
+            <p>منصة موحدة لمتابعة البلاغات والتنسيق بين الأقسام والإشراف على خدمات التشغيل المؤسسية.</p>
             <a asp-controller="Account" asp-action="Login" class="btn btn-primary">تسجيل الدخول إلى النظام</a>
         </div>
         <div class="welcome-emblem" aria-hidden="true"><span>م</span></div>
     </section>
 
-    <section class="welcome-info" aria-label="معلومات النظام">
-        <div><span class="info-mark">١</span><h2>تسجيل ومتابعة</h2><p>توثيق البلاغات ومتابعة حالتها عبر مراحل العمل.</p></div>
-        <div><span class="info-mark">٢</span><h2>تنسيق مؤسسي</h2><p>دعم التنسيق وإحالة الأعمال بين الأقسام المختصة.</p></div>
-        <div><span class="info-mark">٣</span><h2>إجراءات واضحة</h2><p>عرض منظم يساعد على متابعة خطوات معالجة العطل.</p></div>
+    <section class="feature-grid" aria-label="معلومات النظام">
+        <div class="info-card"><span class="info-mark">١</span><h2>تسجيل ومتابعة</h2><p>توثيق البلاغات ومتابعة حالتها عبر مراحل العمل والتاريخ المؤسسي.</p></div>
+        <div class="info-card"><span class="info-mark">٢</span><h2>تنسيق مؤسسي</h2><p>دعم التنسيق بين الأقسام وتوزيع العمل وفق الأدوار والسلطات المعتمدة.</p></div>
+        <div class="info-card"><span class="info-mark">٣</span><h2>إجراءات واضحة</h2><p>واجهة منظمة لتتبع الحالة، مراجعة الحلول، وتحويل البلاغات عند الحاجة.</p></div>
     </section>
 }
 else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.SystemAdministration && Model.Administration is not null)
 {
-    <div class="page-heading"><div><span class="welcome-kicker">لوحة الإدارة</span><h1>ملخص النظام</h1><p>مؤشرات المستخدمين والأقسام والجداول الأسبوعية.</p></div></div>
-    <div class="row g-3">
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">إجمالي المستخدمين</h2><p class="display-6 mb-0">@Model.Administration.TotalUsers</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">المستخدمون النشطون</h2><p class="display-6 mb-0">@Model.Administration.ActiveUsers</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">إجمالي الأقسام</h2><p class="display-6 mb-0">@Model.Administration.TotalDepartments</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">الجداول الأسبوعية</h2><p class="display-6 mb-0">@Model.Administration.WeeklySchedules</p></div></section></div>
+    <div class="page-heading">
+        <div>
+            <span class="welcome-kicker">لوحة الإدارة</span>
+            <h1>ملخص النظام</h1>
+            <p>مؤشرات المستخدمين والأقسام والجداول الأسبوعية.</p>
+        </div>
+    </div>
+
+    <div class="kpi-grid">
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">إجمالي المستخدمين</span><span class="metric-icon">👥</span></div><p class="metric-value">@Model.Administration.TotalUsers</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">المستخدمون النشطون</span><span class="metric-icon">✓</span></div><p class="metric-value">@Model.Administration.ActiveUsers</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">إجمالي الأقسام</span><span class="metric-icon">▦</span></div><p class="metric-value">@Model.Administration.TotalDepartments</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">الجداول الأسبوعية</span><span class="metric-icon">◫</span></div><p class="metric-value">@Model.Administration.WeeklySchedules</p></section>
     </div>
 }
 else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Supervisor && Model.Supervisor is not null)
 {
-    <div class="page-heading"><div><span class="welcome-kicker">لوحة المشرف</span><h1>مؤشرات البلاغات</h1><p>ملخص البلاغات وطلبات التحويل والمراجعات على مستوى النظام.</p></div></div>
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-md-6 col-xl-4"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">إجمالي البلاغات الواردة</h2><p class="display-6 mb-0">@Model.Supervisor.TotalIncomingIncidents</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-4"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">بلاغات واردة بانتظار المراجعة</h2><p class="display-6 mb-0">@Model.Supervisor.IncomingIncidentsAwaitingReview</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-4"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">طلبات تحويل بانتظار المراجعة</h2><p class="display-6 mb-0">@Model.Supervisor.TransferRequestsAwaitingReview</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-4"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">حلول بانتظار المراجعة</h2><p class="display-6 mb-0">@Model.Supervisor.ResolvedIncidentsAwaitingReview</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-4"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">بلاغات مغلقة نهائيًا</h2><p class="display-6 mb-0">@Model.Supervisor.ClosedIncidents</p></div></section></div>
+    <div class="page-heading">
+        <div>
+            <span class="welcome-kicker">لوحة المشرف</span>
+            <h1>مؤشرات البلاغات</h1>
+            <p>ملخص البلاغات وطلبات التحويل والمراجعات على مستوى النظام.</p>
+        </div>
     </div>
-    <div class="row g-3">
-        <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">البلاغات حسب القسم الحالي</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>القسم</th><th>عدد البلاغات</th></tr></thead><tbody>
-            @if (Model.Supervisor.IncidentsByDepartment.Count == 0) { <tr><td colspan="2">لا توجد بيانات متاحة.</td></tr> }
-            @foreach (var item in Model.Supervisor.IncidentsByDepartment) { <tr><td>@item.DepartmentName</td><td>@item.IncidentCount</td></tr> }
-        </tbody></table></div></section></div>
-        <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">أحدث التحويلات</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>رقم البلاغ</th><th>من</th><th>إلى</th><th>التاريخ</th></tr></thead><tbody>
-            @if (Model.Supervisor.RecentTransfers.Count == 0) { <tr><td colspan="4">لا توجد تحويلات مسجلة.</td></tr> }
-            @foreach (var transfer in Model.Supervisor.RecentTransfers) { <tr><td>@transfer.IncidentNumber</td><td>@transfer.FromDepartmentName</td><td>@transfer.ToDepartmentName</td><td>@transfer.TransferDate.ToLocalTime().ToString("g")</td></tr> }
-        </tbody></table></div></section></div>
+
+    <div class="kpi-grid">
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">إجمالي البلاغات الواردة</span><span class="metric-icon">◔</span></div><p class="metric-value">@Model.Supervisor.TotalIncomingIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">بإنتظار المراجعة</span><span class="metric-icon">⏱</span></div><p class="metric-value">@Model.Supervisor.IncomingIncidentsAwaitingReview</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">طلبات تحويل معلقة</span><span class="metric-icon">⇄</span></div><p class="metric-value">@Model.Supervisor.TransferRequestsAwaitingReview</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">حلول بانتظار المراجعة</span><span class="metric-icon">✓</span></div><p class="metric-value">@Model.Supervisor.ResolvedIncidentsAwaitingReview</p></section>
+    </div>
+
+    <div class="metric-grid-2">
+        <section class="panel">
+            <div class="panel-header"><h2 class="panel-title">البلاغات حسب القسم الحالي</h2></div>
+            <div class="table-panel">
+                <table>
+                    <thead><tr><th>القسم</th><th>عدد البلاغات</th></tr></thead>
+                    <tbody>
+                        @if (Model.Supervisor.IncidentsByDepartment.Count == 0)
+                        {
+                            <tr><td colspan="2">لا توجد بيانات متاحة.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model.Supervisor.IncidentsByDepartment)
+                            {
+                                <tr><td>@item.DepartmentName</td><td>@item.IncidentCount</td></tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><h2 class="panel-title">أحدث التحويلات</h2></div>
+            <div class="table-panel">
+                <table>
+                    <thead><tr><th>رقم البلاغ</th><th>من</th><th>إلى</th><th>التاريخ</th></tr></thead>
+                    <tbody>
+                        @if (Model.Supervisor.RecentTransfers.Count == 0)
+                        {
+                            <tr><td colspan="4">لا توجد تحويلات مسجلة.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var transfer in Model.Supervisor.RecentTransfers)
+                            {
+                                <tr><td>@transfer.IncidentNumber</td><td>@transfer.FromDepartmentName</td><td>@transfer.ToDepartmentName</td><td>@transfer.TransferDate.ToLocalTime().ToString("g")</td></tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 }
 else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.DepartmentOfficer && Model.DepartmentOfficer is not null)
 {
-    <div class="page-heading"><div><span class="welcome-kicker">لوحة القسم</span><h1>ملخص قسم @Model.DepartmentOfficer.DepartmentName</h1><p>البلاغات الحالية وطلبات التحويل ضمن نطاق قسمك.</p></div></div>
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">بلاغات واردة</h2><p class="display-6 mb-0">@Model.DepartmentOfficer.IncomingIncidents</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">بلاغات مفتوحة</h2><p class="display-6 mb-0">@Model.DepartmentOfficer.OpenIncidents</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">بلاغات محلولة</h2><p class="display-6 mb-0">@Model.DepartmentOfficer.ResolvedIncidents</p></div></section></div>
-        <div class="col-12 col-md-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6 text-muted">طلبات تحويل معلقة</h2><p class="display-6 mb-0">@Model.DepartmentOfficer.PendingTransferRequests</p></div></section></div>
+    <div class="page-heading">
+        <div>
+            <span class="welcome-kicker">لوحة القسم</span>
+            <h1>ملخص قسم @Model.DepartmentOfficer.DepartmentName</h1>
+            <p>البلاغات الحالية وطلبات التحويل ضمن نطاق قسمك.</p>
+        </div>
     </div>
-    <section class="form-panel"><h2 class="h5">أحدث بلاغات القسم</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الحالة</th><th>تاريخ التسجيل</th><th></th></tr></thead><tbody>
-        @if (Model.DepartmentOfficer.RecentIncidents.Count == 0) { <tr><td colspan="5">لا توجد بلاغات متاحة.</td></tr> }
-        @foreach (var incident in Model.DepartmentOfficer.RecentIncidents)
-        {
-            <tr><td>@incident.IncidentNumber</td><td>@incident.Title</td><td>@(incident.Status switch { IncidentStatus.Incoming => "وارد", IncidentStatus.Open => "مفتوح", IncidentStatus.Resolved => "تم الحل", IncidentStatus.Closed => "مغلق", _ => "غير معروف" })</td><td>@incident.CreatedAt.ToLocalTime().ToString("g")</td><td><a asp-controller="Incidents" asp-action="Details" asp-route-id="@incident.Id" class="btn btn-sm btn-outline-primary">التفاصيل</a></td></tr>
-        }
-    </tbody></table></div></section>
+
+    <div class="kpi-grid">
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">بلاغات واردة</span><span class="metric-icon">◔</span></div><p class="metric-value">@Model.DepartmentOfficer.IncomingIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">بلاغات مفتوحة</span><span class="metric-icon">◌</span></div><p class="metric-value">@Model.DepartmentOfficer.OpenIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">بلاغات محلولة</span><span class="metric-icon">✓</span></div><p class="metric-value">@Model.DepartmentOfficer.ResolvedIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">طلبات تحويل معلقة</span><span class="metric-icon">⇄</span></div><p class="metric-value">@Model.DepartmentOfficer.PendingTransferRequests</p></section>
+    </div>
+
+    <section class="panel">
+        <div class="panel-header"><h2 class="panel-title">أحدث بلاغات القسم</h2></div>
+        <div class="table-panel">
+            <table>
+                <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الحالة</th><th>تاريخ التسجيل</th><th></th></tr></thead>
+                <tbody>
+                    @if (Model.DepartmentOfficer.RecentIncidents.Count == 0)
+                    {
+                        <tr><td colspan="5">لا توجد بلاغات متاحة.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var incident in Model.DepartmentOfficer.RecentIncidents)
+                        {
+                            <tr class="@incident.Status.ToRowClass()">
+                                <td>@incident.IncidentNumber</td>
+                                <td>@incident.Title</td>
+                                <td><partial name="_StatusBadge" model="incident.Status" /></td>
+                                <td>@incident.CreatedAt.ToLocalTime().ToString("g")</td>
+                                <td><a asp-controller="Incidents" asp-action="Details" asp-route-id="@incident.Id" class="btn btn-outline-primary btn-sm">التفاصيل</a></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

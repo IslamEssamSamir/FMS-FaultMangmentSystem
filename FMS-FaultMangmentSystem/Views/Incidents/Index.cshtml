@@ -48,12 +48,24 @@
     <script>
         $(function () {
             const tableElement = document.getElementById("incidentTable");
+            const rowClassMap = {
+                0: "incident-row--incoming",
+                1: "incident-row--open",
+                2: "incident-row--resolved",
+                3: "incident-row--closed"
+            };
+
             const table = new DataTable(tableElement, {
                 processing: true,
                 serverSide: true,
                 pageLength: 25,
                 lengthMenu: [10, 25, 50, 100],
                 order: [[5, "desc"]],
+                createdRow: function (row, data) {
+                    const status = Number(data.status ?? 0);
+                    const className = rowClassMap[status] ?? "incident-row--unknown";
+                    row.classList.add(className);
+                },
                 ajax: {
                     url: tableElement.dataset.source,
                     data: function (request) {
@@ -70,7 +82,16 @@
                 columns: [
                     { data: "incidentNumber", render: DataTable.render.text() },
                     { data: "title", render: DataTable.render.text() },
-                    { data: "status", render: function (value) { return ({ 0: "وارد", 1: "مفتوح", 2: "تم الحل", 3: "مغلق" })[value] ?? "غير معروف"; } },
+                    { data: "status", render: function (value) {
+                        const map = {
+                            0: { label: "وارد", className: "text-bg-warning" },
+                            1: { label: "مفتوح", className: "text-bg-info" },
+                            2: { label: "مسدد", className: "text-bg-primary" },
+                            3: { label: "مغلق", className: "text-bg-success" }
+                        };
+                        const item = map[value] ?? { label: "غير معروف", className: "text-bg-secondary" };
+                        return '<span class="status-badge badge rounded-pill ' + item.className + '">' + item.label + '</span>';
+                    } },
                     { data: "reportingDepartmentName", render: DataTable.render.text() },
                     { data: "currentDepartmentName", render: DataTable.render.text() },
                     { data: "createdAt", render: function (value, type) { return type === "display" ? new Date(value).toLocaleString("ar-EG") : value; } },

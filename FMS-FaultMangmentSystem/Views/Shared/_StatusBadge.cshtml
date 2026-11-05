@@ -1,13 +1,129 @@
 @using IncidentManagementSystem.Models.Enums
-@model IncidentStatus
+@model object
 @{
-    var (label, style) = Model switch
+    var (label, badgeClass) = Model switch
     {
-        IncidentStatus.Incoming => ("وارد", "status-incoming"),
-        IncidentStatus.Open => ("قيد المعالجة", "status-open"),
-        IncidentStatus.Resolved => ("تم الحل", "status-resolved"),
-        IncidentStatus.Closed => ("مغلق", "status-closed"),
-        _ => ("غير معروف", "status-unknown")
+        IncidentStatus.Incoming => ("وارد", "text-bg-warning"),
+        IncidentStatus.Open => ("مفتوح", "text-bg-info"),
+        IncidentStatus.Resolved => ("مسدد", "text-bg-primary"),
+        IncidentStatus.Closed => ("مغلق", "text-bg-success"),
+        TransferRequestStatus.Pending => ("قيد المراجعة", "text-bg-warning"),
+        TransferRequestStatus.Approved => ("موافق", "text-bg-success"),
+        TransferRequestStatus.Rejected => ("مرفوض", "text-bg-danger"),
+        _ => ("غير معروف", "text-bg-secondary")
     };
 }
-<span class="status-badge @style">@label</span>
+<span class="status-badge badge rounded-pill @badgeClass">@label</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

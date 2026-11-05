@@ -1,64 +1,555 @@
 @using IncidentManagementSystem.Authorization
-<aside class="app-sidebar" id="appSidebar" aria-label="التنقل الرئيسي">
+<aside class="app-sidebar" id="appSidebar" aria-label="التنavig الرئيسي">
     <div class="sidebar-brand">
         <a asp-controller="Home" asp-action="Index" class="brand-mark" aria-label="الصفحة الرئيسية">م</a>
-        <div>
+        <div class="brand-copy">
             <div class="brand-title">نظام إدارة الأعطال</div>
-            <div class="brand-subtitle">إدارة ومتابعة مؤسسية</div>
+            <div class="brand-subtitle">بوابة التشغيل المؤسسي</div>
         </div>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" aria-label="القائمة الرئيسية">
         <div class="nav-section-label">القائمة الرئيسية</div>
         <a asp-controller="Home" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : null)">
-            <span class="nav-icon" aria-hidden="true">⌂</span><span>الرئيسية</span>
+            <span class="nav-icon" aria-hidden="true">⌂</span>
+            <span>الرئيسية</span>
         </a>
 
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewAllIncidents) || User.HasClaim(Permissions.ClaimType, Permissions.ViewDepartmentIncidents))
         {
             <div class="nav-section-label">إدارة الأعطال</div>
-            <a asp-controller="Incidents" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">▤</span><span>قائمة الأعطال</span></a>
+            <a asp-controller="Incidents" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Incidents" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">▣</span><span>قائمة البلاغات</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.SubmitComplaints))
         {
-            <a asp-controller="Incidents" asp-action="Create" class="sidebar-link"><span class="nav-icon" aria-hidden="true">＋</span><span>تقديم بلاغ</span></a>
+            <a asp-controller="Incidents" asp-action="Create" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Incidents" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">＋</span><span>تسجيل بلاغ</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ReviewIncomingIncidents))
         {
-            <a asp-controller="Incidents" asp-action="Incoming" class="sidebar-link"><span class="nav-icon" aria-hidden="true">◷</span><span>البلاغات الواردة</span></a>
+            <a asp-controller="Incidents" asp-action="Incoming" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Incidents" && ViewContext.RouteData.Values["action"]?.ToString() == "Incoming" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">◔</span><span>البلاغات الواردة</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewTransferRequests))
         {
-            <a asp-controller="TransferRequests" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">⇄</span><span>طلبات التحويل</span></a>
+            <a asp-controller="TransferRequests" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TransferRequests" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">⇄</span><span>طلبات التحويل</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ReviewResolvedIncidents))
         {
-            <a asp-controller="Incidents" asp-action="Reviews" class="sidebar-link"><span class="nav-icon" aria-hidden="true">✓</span><span>مراجعة الحلول</span></a>
+            <a asp-controller="Incidents" asp-action="Reviews" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Incidents" && ViewContext.RouteData.Values["action"]?.ToString() == "Reviews" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">✓</span><span>مراجعة الحلول</span>
+            </a>
         }
+
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ManageDepartments))
         {
-            <a asp-controller="Departments" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">▦</span><span>الأقسام</span></a>
+            <a asp-controller="Departments" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Departments" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">▦</span><span>الأقسام</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ManageUsers) || User.HasClaim(Permissions.ClaimType, Permissions.ManageRoles))
         {
-            <a asp-controller="Users" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">♙</span><span>المستخدمون</span></a>
+            <a asp-controller="Users" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Users" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">◍</span><span>المستخدمون</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ManageShifts))
         {
-            <a asp-controller="ShiftSchedules" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">◷</span><span>النوبتجيات</span></a>
+            <a asp-controller="ShiftSchedules" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "ShiftSchedules" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">◫</span><span>النوبات</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewAllIncidents) || User.HasClaim(Permissions.ClaimType, Permissions.ViewDepartmentIncidents))
         {
-            <a asp-controller="Reports" asp-action="Index" class="sidebar-link"><span class="nav-icon" aria-hidden="true">▥</span><span>التقارير</span></a>
+            <a asp-controller="Reports" asp-action="Index" class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Reports" ? "active" : null)">
+                <span class="nav-icon" aria-hidden="true">▤</span><span>التقارير</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewAuditLogs))
         {
-            <a href="#" class="sidebar-link"><span class="nav-icon" aria-hidden="true">◉</span><span>سجل العمليات</span></a>
+            <a href="#" class="sidebar-link">
+                <span class="nav-icon" aria-hidden="true">◌</span><span>سجل العمليات</span>
+            </a>
         }
         @if (User.HasClaim(Permissions.ClaimType, Permissions.ManageSystemSettings))
         {
-            <a href="#" class="sidebar-link"><span class="nav-icon" aria-hidden="true">⚙</span><span>إعدادات النظام</span></a>
+            <a href="#" class="sidebar-link">
+                <span class="nav-icon" aria-hidden="true">⚙</span><span>إعدادات النظام</span>
+            </a>
         }
     </nav>
-    <div class="sidebar-note"><span class="sidebar-note-mark">م</span><span>بيئة عمل داخلية<br /><small>واجهة مؤسسية آمنة</small></span></div>
+
+    <div class="sidebar-note">
+        <span class="sidebar-note-mark">م</span>
+        <span>بيئة عمل داخلية<br /><small>واجهة مؤسسية آمنة</small></span>
+    </div>
 </aside>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,7 +1,9 @@
+@using IncidentManagementSystem.Models.Enums
 @model System.Collections.Generic.IReadOnlyList<IncidentManagementSystem.ViewModels.IncidentListItemViewModel>
 @{
     ViewData["Title"] = "البلاغات الواردة";
 }
+
 
 <div class="page-heading">
     <div><span class="welcome-kicker">مراجعة المشرف</span><h1>البلاغات الواردة</h1><p>البلاغات التي ما زالت في حالة «وارد» وتحتاج إلى توجيه أو مراجعة.</p></div>
@@ -24,7 +26,7 @@
         {
             @foreach (var incident in Model)
             {
-                <tr>
+                <tr class="@incident.Status.ToRowClass()">
                     <td>@incident.IncidentNumber</td>
                     <td>@incident.Title</td>
                     <td>@incident.CurrentDepartmentName</td>

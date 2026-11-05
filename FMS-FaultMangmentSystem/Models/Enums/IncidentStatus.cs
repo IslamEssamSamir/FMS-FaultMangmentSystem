@@ -7,3 +7,15 @@ public enum IncidentStatus
     Resolved,
     Closed
 }
+
+public static class IncidentStatusExtensions
+{
+    public static string ToRowClass(this IncidentStatus status) => status switch
+    {
+        IncidentStatus.Incoming => "incident-row--incoming",
+        IncidentStatus.Open => "incident-row--open",
+        IncidentStatus.Resolved => "incident-row--resolved",
+        IncidentStatus.Closed => "incident-row--closed",
+        _ => "incident-row--unknown"
+    };
+}

@@ -38,7 +38,7 @@
         @if (Model.Report.ByStatus.Count == 0) { <tr><td colspan="2">لا توجد بيانات للفترة المحددة.</td></tr> }
         @foreach (var item in Model.Report.ByStatus)
         {
-            <tr><td>@(item.Status switch { IncidentStatus.Incoming => "وارد", IncidentStatus.Open => "مفتوح", IncidentStatus.Resolved => "تم الحل", IncidentStatus.Closed => "مغلق", _ => "غير معروف" })</td><td>@item.Count</td></tr>
+            <tr><td><partial name="_StatusBadge" model="item.Status" /></td><td>@item.Count</td></tr>
         }
     </tbody></table></div></section></div>
     <div class="col-12 col-xl-6"><section class="form-panel h-100"><h2 class="h5">البلاغات حسب القسم الحالي</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>القسم</th><th>العدد</th></tr></thead><tbody>

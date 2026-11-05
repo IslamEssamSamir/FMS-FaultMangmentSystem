@@ -20,7 +20,8 @@
 <section class="form-panel mb-4">
     <h2 class="h5">بيانات الطلب</h2>
     <dl class="row">
-        <dt class="col-sm-3">حالة البلاغ</dt><dd class="col-sm-9">@request.IncidentStatus</dd>
+        <dt class="col-sm-3">حالة البلاغ</dt><dd class="col-sm-9"><partial name="_StatusBadge" model="request.IncidentStatus" /></dd>
+        <dt class="col-sm-3">حالة الطلب</dt><dd class="col-sm-9"><partial name="_StatusBadge" model="request.RequestStatus" /></dd>
         <dt class="col-sm-3">القسم الحالي</dt><dd class="col-sm-9">@request.CurrentDepartmentName</dd>
         <dt class="col-sm-3">القسم المُحيل</dt><dd class="col-sm-9">@request.FromDepartmentName</dd>
         <dt class="col-sm-3">القسم المطلوب</dt><dd class="col-sm-9">@request.RequestedTargetDepartmentName</dd>
