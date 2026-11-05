@@ -366,15 +366,24 @@ public sealed class IncidentsController(
     {
         var transferHistory = await transferService.GetHistoryAsync(incident.Id, cancellationToken);
         List<DepartmentViewModel> receivingDepartments = [];
+
+        var currentDepartmentAllowsTransferSubmission = false;
         if (HasPermission(Permissions.SubmitTransferRequests))
         {
-            receivingDepartments = await dbContext.Departments.AsNoTracking()
-                .Where(department => department.Id != incident.CurrentDepartmentId &&
-                                     department.IsActive &&
-                                     department.IsIncidentReceivingDepartment)
-                .OrderBy(department => department.Name)
-                .Select(department => new DepartmentViewModel { Id = department.Id, Name = department.Name })
-                .ToListAsync(cancellationToken);
+            var currentDepartment = await dbContext.Departments.AsNoTracking()
+                .SingleOrDefaultAsync(department => department.Id == incident.CurrentDepartmentId && department.IsActive, cancellationToken);
+            currentDepartmentAllowsTransferSubmission = currentDepartment?.CanSubmitTransferRequests ?? false;
+
+            if (currentDepartmentAllowsTransferSubmission)
+            {
+                receivingDepartments = await dbContext.Departments.AsNoTracking()
+                    .Where(department => department.Id != incident.CurrentDepartmentId &&
+                                         department.IsActive &&
+                                         department.IsIncidentReceivingDepartment)
+                    .OrderBy(department => department.Name)
+                    .Select(department => new DepartmentViewModel { Id = department.Id, Name = department.Name })
+                    .ToListAsync(cancellationToken);
+            }
         }
 
         return new IncidentDetailsPageViewModel
@@ -382,8 +391,22 @@ public sealed class IncidentsController(
             Incident = incident,
             TransferRequest = request ?? new TransferRequestCreateViewModel(),
             ReceivingDepartments = receivingDepartments,
-            TransferHistory = transferHistory.Data ?? []
+            TransferHistory = transferHistory.Data ?? [],
+            CanSubmitTransferRequest = currentDepartmentAllowsTransferSubmission
         };
+    }
+
+    private async Task<bool> CanCurrentUserSubmitTransferRequestsAsync(int currentDepartmentId, CancellationToken cancellationToken)
+    {
+        if (!HasPermission(Permissions.SubmitTransferRequests))
+        {
+            return false;
+        }
+
+        var department = await dbContext.Departments.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == currentDepartmentId && item.IsActive, cancellationToken);
+
+        return department?.CanSubmitTransferRequests == true;
     }
 
     private async Task PopulateCreateViewDataAsync(CancellationToken cancellationToken)

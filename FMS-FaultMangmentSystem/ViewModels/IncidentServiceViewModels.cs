@@ -84,4 +84,5 @@ public class IncidentDetailsPageViewModel
     public TransferRequestCreateViewModel TransferRequest { get; set; } = new();
     public IReadOnlyList<DepartmentViewModel> ReceivingDepartments { get; set; } = [];
     public IReadOnlyList<IncidentTransferHistoryViewModel> TransferHistory { get; set; } = [];
+    public bool CanSubmitTransferRequest { get; set; }
 }

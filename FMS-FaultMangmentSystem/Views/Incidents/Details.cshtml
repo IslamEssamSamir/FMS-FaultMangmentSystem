@@ -49,30 +49,38 @@
         </form>
     }
 
-    @if (incident.Status == IncidentStatus.Incoming && User.HasClaim(Permissions.ClaimType, Permissions.SubmitTransferRequests) && Model.ReceivingDepartments.Count > 0)
+    @if (incident.Status == IncidentStatus.Incoming && User.HasClaim(Permissions.ClaimType, Permissions.SubmitTransferRequests))
     {
-        <hr />
-        <h2 class="h5">طلب تحويل البلاغ</h2>
-        <p>لن يؤدي تقديم الطلب إلى تغيير القسم الحالي أو حالة البلاغ. ينفذ المشرف التحويل بعد الموافقة.</p>
-        <form asp-action="RequestTransfer" asp-route-id="@incident.Id" method="post">
-            <div class="mb-3">
-                <label asp-for="TransferRequest.TargetDepartmentId" class="form-label">القسم المستقبِل المطلوب</label>
-                <select asp-for="TransferRequest.TargetDepartmentId" class="form-select">
-                    <option value="">اختر القسم</option>
-                    @foreach (var department in Model.ReceivingDepartments)
-                    {
-                        <option value="@department.Id">@department.Name</option>
-                    }
-                </select>
-                <span asp-validation-for="TransferRequest.TargetDepartmentId" class="text-danger"></span>
-            </div>
-            <div class="mb-3">
-                <label asp-for="TransferRequest.Reason" class="form-label">سبب التحويل</label>
-                <textarea asp-for="TransferRequest.Reason" class="form-control" rows="3" maxlength="2000"></textarea>
-                <span asp-validation-for="TransferRequest.Reason" class="text-danger"></span>
-            </div>
-            <button type="submit" class="btn btn-outline-primary">إرسال طلب التحويل</button>
-        </form>
+        if (Model.CanSubmitTransferRequest && Model.ReceivingDepartments.Count > 0)
+        {
+            <hr />
+            <h2 class="h5">طلب تحويل البلاغ</h2>
+            <p>لن يؤدي تقديم الطلب إلى تغيير القسم الحالي أو حالة البلاغ. ينفذ المشرف التحويل بعد الموافقة.</p>
+            <form asp-action="RequestTransfer" asp-route-id="@incident.Id" method="post">
+                <div class="mb-3">
+                    <label asp-for="TransferRequest.TargetDepartmentId" class="form-label">القسم المستقبِل المطلوب</label>
+                    <select asp-for="TransferRequest.TargetDepartmentId" class="form-select">
+                        <option value="">اختر القسم</option>
+                        @foreach (var department in Model.ReceivingDepartments)
+                        {
+                            <option value="@department.Id">@department.Name</option>
+                        }
+                    </select>
+                    <span asp-validation-for="TransferRequest.TargetDepartmentId" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="TransferRequest.Reason" class="form-label">سبب التحويل</label>
+                    <textarea asp-for="TransferRequest.Reason" class="form-control" rows="3" maxlength="2000"></textarea>
+                    <span asp-validation-for="TransferRequest.Reason" class="text-danger"></span>
+                </div>
+                <button type="submit" class="btn btn-outline-primary">إرسال طلب التحويل</button>
+            </form>
+        }
+        else if (!Model.CanSubmitTransferRequest)
+        {
+            <hr />
+            <div class="alert alert-warning" role="alert">عذراً، لا يسمح القسم الحالي لضباطه بطلب تحويل الأعطال إلى المشرف.</div>
+        }
     }
 
     @if (incident.Status == IncidentStatus.Open && User.HasClaim(Permissions.ClaimType, Permissions.AddIncidentActions))

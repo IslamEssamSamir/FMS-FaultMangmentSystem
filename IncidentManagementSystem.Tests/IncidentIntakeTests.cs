@@ -441,6 +441,34 @@ public class IncidentIntakeTests
     }
 
     [Fact]
+    public async Task TransferRequest_FailsWhenCurrentDepartmentDisallowsSubmission()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        seeded.ReportingDepartment.CanSubmitTransferRequests = false;
+        await dbContext.SaveChangesAsync();
+
+        var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.SubmitTransferRequests]);
+        var created = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Title = "Damaged equipment",
+            Description = "Equipment is broken."
+        });
+        Assert.True(created.Succeeded);
+
+        var result = await CreateTransferService(dbContext, submitter).SubmitRequestAsync(created.Data!.Id,
+            new TransferRequestCreateViewModel
+            {
+                TargetDepartmentId = seeded.ReceivingDepartment.Id,
+                Reason = "Needs specialist review."
+            });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("عذراً، لا يسمح القسم الحالي لضباطه بطلب تحويل الأعطال إلى المشرف.", result.ErrorMessage);
+        Assert.Empty(await dbContext.IncidentTransferRequests.ToListAsync());
+    }
+
+    [Fact]
     public async Task TransferReview_RequiresIncomingStateAndSupervisorRole()
     {
         await using var dbContext = await CreateDbContextAsync();
@@ -485,9 +513,9 @@ public class IncidentIntakeTests
 
     private static async Task<SeededData> SeedDepartmentsAndUsersAsync(ApplicationDbContext dbContext)
     {
-        var reporting = new Department { Name = "Reporting", IsActive = true, IsIncidentReceivingDepartment = false };
-        var receiving = new Department { Name = "Receiving", IsActive = true, IsIncidentReceivingDepartment = true };
-        var otherReceiving = new Department { Name = "Other Receiving", IsActive = true, IsIncidentReceivingDepartment = true };
+        var reporting = new Department { Name = "Reporting", IsActive = true, IsIncidentReceivingDepartment = false, CanSubmitTransferRequests = true };
+        var receiving = new Department { Name = "Receiving", IsActive = true, IsIncidentReceivingDepartment = true, CanSubmitTransferRequests = true };
+        var otherReceiving = new Department { Name = "Other Receiving", IsActive = true, IsIncidentReceivingDepartment = true, CanSubmitTransferRequests = true };
         var civilian = new ApplicationUser { Id = "civilian", FullName = "Civilian Reporter", IsActive = true, Department = reporting };
         var receivingOfficer = new ApplicationUser { Id = "receiver", FullName = "Receiving Officer", IsActive = true, Department = receiving };
         var otherOfficer = new ApplicationUser { Id = "other", FullName = "Other Officer", IsActive = true, Department = otherReceiving };

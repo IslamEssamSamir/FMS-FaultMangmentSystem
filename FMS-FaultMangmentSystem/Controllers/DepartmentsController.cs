@@ -57,7 +57,8 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
         {
             Name = department.Name,
             Description = department.Description,
-            IsIncidentReceivingDepartment = department.IsIncidentReceivingDepartment
+            IsIncidentReceivingDepartment = department.IsIncidentReceivingDepartment,
+            CanSubmitTransferRequests = department.CanSubmitTransferRequests
         });
     }
 
