@@ -15,6 +15,8 @@ public class IncidentTransferConfiguration : IEntityTypeConfiguration<IncidentTr
         builder.Property(transfer => transfer.TransferDate)
             .HasColumnType("datetime2(7)")
             .HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(transfer => transfer.DutyOfficerFullNameSnapshot).HasMaxLength(200);
+        builder.Property(transfer => transfer.DutyOfficerRankSnapshot).HasMaxLength(50);
         builder.HasIndex(transfer => new { transfer.IncidentId, transfer.TransferDate });
         builder.HasIndex(transfer => new { transfer.FromDepartmentId, transfer.ToDepartmentId });
         builder.HasOne(transfer => transfer.Incident)

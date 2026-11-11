@@ -99,6 +99,7 @@ public sealed class UserService(
         user.Email = model.Email.Trim();
         user.UserName = user.Email;
         user.FullName = model.FullName.Trim();
+        user.Rank = NormalizeRank(model.Rank);
         user.Department = departmentResult.Data;
         user.DepartmentId = departmentResult.Data?.Id;
         user.IsActive = true;
@@ -163,6 +164,7 @@ public sealed class UserService(
 
         mapper.Map(model, user);
         user.FullName = model.FullName.Trim();
+        user.Rank = NormalizeRank(model.Rank);
         user.Department = departmentResult.Data;
         user.DepartmentId = departmentResult.Data?.Id;
 
@@ -342,6 +344,9 @@ public sealed class UserService(
 
     private static bool RequiresDepartment(string roleName) =>
         roleName is RolePermissions.User or RolePermissions.CivilianEmployee;
+
+    private static string? NormalizeRank(string? rank) =>
+        string.IsNullOrWhiteSpace(rank) ? null : rank.Trim();
 
     private static ServiceResult<T> IdentityFailure<T>(IdentityResult result, string emailField, string passwordField)
     {

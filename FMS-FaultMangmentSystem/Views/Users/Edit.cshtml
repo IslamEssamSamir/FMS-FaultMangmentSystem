@@ -1,5 +1,34 @@
 @model IncidentManagementSystem.ViewModels.UserUpdateViewModel
 @{ ViewData["Title"] = "تعديل مستخدم"; }
 <div class="page-heading"><div><span class="welcome-kicker">إدارة الوصول</span><h1>تعديل بيانات المستخدم</h1><p>تحديث الملف الشخصي والقسم. تغيير حالة الحساب متاح من صفحة التفاصيل.</p></div><a asp-action="Index" class="btn btn-light">العودة للقائمة</a></div>
-<div class="form-panel"><form asp-action="Edit" method="post"><div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div><div class="mb-3"><label asp-for="FullName" class="form-label">الاسم الكامل</label><input asp-for="FullName" class="form-control" autocomplete="name" /><span asp-validation-for="FullName" class="text-danger"></span></div><div class="mb-4"><label asp-for="DepartmentId" class="form-label">القسم</label><select asp-for="DepartmentId" class="form-select"><option value="">بدون قسم</option>@foreach (var department in (IEnumerable<DepartmentViewModel>)ViewBag.Departments) { <option value="@department.Id">@department.Name</option> }</select><span asp-validation-for="DepartmentId" class="text-danger"></span></div><div class="form-actions"><button type="submit" class="btn btn-primary">حفظ التعديلات</button><a asp-action="Index" class="btn btn-light">إلغاء</a></div></form></div>
+<div class="form-panel">
+    <form asp-action="Edit" method="post">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="FullName" class="form-label">الاسم الكامل</label>
+            <input asp-for="FullName" class="form-control" autocomplete="name" />
+            <span asp-validation-for="FullName" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Rank" class="form-label">الرتبة</label>
+            <input asp-for="Rank" class="form-control" maxlength="50" />
+            <span asp-validation-for="Rank" class="text-danger"></span>
+        </div>
+        <div class="mb-4">
+            <label asp-for="DepartmentId" class="form-label">القسم</label>
+            <select asp-for="DepartmentId" class="form-select">
+                <option value="">بدون قسم</option>
+                @foreach (var department in (IEnumerable<DepartmentViewModel>)ViewBag.Departments)
+                {
+                    <option value="@department.Id">@department.Name</option>
+                }
+            </select>
+            <span asp-validation-for="DepartmentId" class="text-danger"></span>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">حفظ التعديلات</button>
+            <a asp-action="Index" class="btn btn-light">إلغاء</a>
+        </div>
+    </form>
+</div>
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

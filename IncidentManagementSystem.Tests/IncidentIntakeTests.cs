@@ -5,6 +5,7 @@ using IncidentManagementSystem.Mapping;
 using IncidentManagementSystem.Models.Entities;
 using IncidentManagementSystem.Models.Enums;
 using IncidentManagementSystem.Models.Identity;
+using IncidentManagementSystem.Services;
 using IncidentManagementSystem.Services.Implementations;
 using IncidentManagementSystem.Services.Interfaces;
 using IncidentManagementSystem.ViewModels;
@@ -110,6 +111,11 @@ public class IncidentIntakeTests
     {
         await using var dbContext = await CreateDbContextAsync();
         var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        seeded.ReceivingOfficer.Rank = "Captain";
+        seeded.OtherOfficer.Rank = "Lieutenant";
+        await dbContext.SaveChangesAsync();
+        await AddAllDayDutyAssignmentsAsync(dbContext, seeded.ReceivingDepartment, seeded.ReceivingOfficer, seeded.Civilian.Id);
+        await AddAllDayDutyAssignmentsAsync(dbContext, seeded.OtherReceivingDepartment, seeded.OtherOfficer, seeded.Civilian.Id);
         var creator = new TestCurrentUserContext(
             seeded.Civilian.Id,
             [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
@@ -120,6 +126,9 @@ public class IncidentIntakeTests
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
         });
         Assert.True(created.Succeeded);
+        var createdIncident = await dbContext.Incidents.SingleAsync();
+        Assert.Equal("Receiving Officer", createdIncident.InitialDutyOfficerFullNameSnapshot);
+        Assert.Equal("Captain", createdIncident.InitialDutyOfficerRankSnapshot);
 
         var transferRequest = await CreateTransferService(dbContext, new TestCurrentUserContext(
             seeded.ReceivingOfficer.Id,
@@ -158,7 +167,39 @@ public class IncidentIntakeTests
         var transfer = await dbContext.IncidentTransfers.SingleAsync();
         Assert.Equal(seeded.ReceivingDepartment.Id, transfer.FromDepartmentId);
         Assert.Equal(seeded.OtherReceivingDepartment.Id, transfer.ToDepartmentId);
-        Assert.True((await CreateIncidentService(dbContext, supervisor).GetDetailsAsync(transferred.Id)).Succeeded);
+        Assert.Equal("Other Officer", transfer.DutyOfficerFullNameSnapshot);
+        Assert.Equal("Lieutenant", transfer.DutyOfficerRankSnapshot);
+        dbContext.IncidentTransfers.AddRange(
+            new IncidentTransfer
+            {
+                IncidentId = transferred.Id,
+                FromDepartmentId = seeded.OtherReceivingDepartment.Id,
+                ToDepartmentId = seeded.ReceivingDepartment.Id,
+                TransferredBySupervisorId = seeded.Civilian.Id,
+                TransferReason = "Return for review.",
+                TransferDate = transfer.TransferDate.AddSeconds(1),
+                DutyOfficerFullNameSnapshot = "Receiving Officer",
+                DutyOfficerRankSnapshot = "Captain"
+            },
+            new IncidentTransfer
+            {
+                IncidentId = transferred.Id,
+                FromDepartmentId = seeded.ReceivingDepartment.Id,
+                ToDepartmentId = seeded.OtherReceivingDepartment.Id,
+                TransferredBySupervisorId = seeded.Civilian.Id,
+                TransferReason = "Specialist review resumed.",
+                TransferDate = transfer.TransferDate.AddSeconds(2),
+                DutyOfficerFullNameSnapshot = "Later Other Officer",
+                DutyOfficerRankSnapshot = "Commander"
+            });
+        await dbContext.SaveChangesAsync();
+        var details = await CreateIncidentService(dbContext, supervisor).GetDetailsAsync(transferred.Id);
+        Assert.True(details.Succeeded);
+        var responsibility = Assert.Single(details.Data!.DepartmentResponsibilities);
+        Assert.True(responsibility.IsPrimary);
+        Assert.Equal("Other Receiving", responsibility.DepartmentName);
+        Assert.Equal("Later Other Officer", responsibility.DutyOfficerFullName);
+        Assert.Equal("Commander", responsibility.DutyOfficerRank);
 
         var originalDepartmentOfficer = new TestCurrentUserContext(
             seeded.Civilian.Id,
@@ -677,11 +718,59 @@ public class IncidentIntakeTests
         return new SeededData(reporting, receiving, otherReceiving, civilian, receivingOfficer, otherOfficer);
     }
 
+    private static async Task AddAllDayDutyAssignmentsAsync(
+        ApplicationDbContext dbContext,
+        Department department,
+        ApplicationUser officer,
+        string createdByUserId)
+    {
+        var definition = new ShiftDefinition
+        {
+            Name = $"All day {Guid.NewGuid():N}",
+            StartTime = TimeOnly.MinValue,
+            EndTime = TimeOnly.MinValue,
+            IsOvernight = true,
+            IsActive = true
+        };
+        dbContext.ShiftDefinitions.Add(definition);
+        await dbContext.SaveChangesAsync();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        for (var offset = -1; offset <= 1; offset++)
+        {
+            var shiftDate = today.AddDays(offset);
+            var weekStart = ShiftScheduleRules.GetWeekStart(shiftDate);
+            var schedule = await dbContext.WeeklyShiftSchedules
+                .SingleOrDefaultAsync(item => item.WeekStartDate == weekStart);
+            if (schedule is null)
+            {
+                schedule = new WeeklyShiftSchedule
+                {
+                    WeekStartDate = weekStart,
+                    CreatedByUserId = createdByUserId
+                };
+                dbContext.WeeklyShiftSchedules.Add(schedule);
+                await dbContext.SaveChangesAsync();
+            }
+
+            dbContext.ShiftAssignments.Add(new ShiftAssignment
+            {
+                WeeklyShiftScheduleId = schedule.Id,
+                DepartmentId = department.Id,
+                UserId = officer.Id,
+                ShiftDefinitionId = definition.Id,
+                ShiftDate = shiftDate
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
     private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
-        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user));
+        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user), new DutyOfficerSnapshotService(dbContext));
 
     private static IncidentTransferService CreateTransferService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
-        new(dbContext, CreateMapper(), user, new NoOpAuditLogService());
+        new(dbContext, CreateMapper(), user, new NoOpAuditLogService(), new DutyOfficerSnapshotService(dbContext));
 
     private static IncidentReviewService CreateIncidentReviewService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
         new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user));

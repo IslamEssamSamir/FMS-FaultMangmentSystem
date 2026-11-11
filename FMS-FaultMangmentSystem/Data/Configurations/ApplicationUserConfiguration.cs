@@ -11,6 +11,8 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(user => user.FullName)
             .HasMaxLength(200)
             .IsRequired();
+        builder.Property(user => user.Rank)
+            .HasMaxLength(50);
         builder.Property(user => user.IsActive)
             .HasDefaultValue(true);
         builder.Property(user => user.CreatedAt)

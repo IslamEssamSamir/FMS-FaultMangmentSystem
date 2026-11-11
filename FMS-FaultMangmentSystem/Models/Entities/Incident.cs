@@ -18,6 +18,8 @@ public class Incident
     public string? ResolvedByUserId { get; set; }
     public string? FinalSolutionDescription { get; set; }
     public string? ResolutionSteps { get; set; }
+    public string? InitialDutyOfficerFullNameSnapshot { get; set; }
+    public string? InitialDutyOfficerRankSnapshot { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }

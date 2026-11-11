@@ -1342,6 +1342,19 @@ textarea {
 .notification-title-row { justify-content: flex-start; margin-bottom: 8px; }
 .notification-unread-badge { padding: 3px 8px; border-radius: 999px; color: #1e3a8a; background: #dbeafe; font-size: .7rem; font-weight: 700; }
 .notification-card-actions { justify-content: flex-start; flex-wrap: wrap; }
+.responsibility-table-wrap { border: 1px solid var(--line); border-radius: 10px; }
+.responsibility-table { min-width: 520px; margin-bottom: 0; }
+.responsibility-table th { color: #475569; background: #f8fafc; font-size: .8rem; white-space: nowrap; }
+.responsibility-table td { vertical-align: middle; }
+.responsibility-primary-row { background: #f8fbff; }
+.responsibility-department, .responsibility-officer { display: inline-flex; align-items: center; gap: 9px; }
+.responsibility-department .department-color-indicator { background: var(--department-accent, #64748b); }
+.responsibility-badge { display: inline-block; padding: 5px 11px; border-radius: 999px; font-size: .74rem; font-weight: 700; white-space: nowrap; }
+.responsibility-badge-primary { color: #1e3a8a; background: #dbeafe; }
+.responsibility-badge-participating { color: #166534; background: #dcfce7; }
+.responsibility-officer { flex-wrap: wrap; }
+.responsibility-officer-rank { color: #1e3a8a; font-weight: 700; }
+.responsibility-unavailable { color: var(--muted); font-size: .85rem; }
 @media (max-width: 700px) {
     .participant-heading, .department-card-header, .notification-card { align-items: stretch; flex-direction: column; }
     .assignment-dates { justify-items: start; }

@@ -14,7 +14,8 @@ public sealed class IncidentService(
     ApplicationDbContext dbContext,
     IMapper mapper,
     ICurrentUserContext currentUser,
-    IAuditLogService auditLogService) : IIncidentService
+    IAuditLogService auditLogService,
+    IDutyOfficerSnapshotService dutyOfficerSnapshotService) : IIncidentService
 {
     public async Task<ServiceResult<IncidentDetailsViewModel>> SubmitComplaintAsync(
         IncidentCreateViewModel model,
@@ -78,6 +79,12 @@ public sealed class IncidentService(
         incident.InitialReceivingDepartmentId = receivingDepartment.Id;
         incident.CurrentDepartmentId = receivingDepartment.Id;
         incident.CreatedAt = now;
+        var dutyOfficer = await dutyOfficerSnapshotService.GetForDepartmentAtAsync(
+            receivingDepartment.Id,
+            now,
+            cancellationToken);
+        incident.InitialDutyOfficerFullNameSnapshot = dutyOfficer?.FullName;
+        incident.InitialDutyOfficerRankSnapshot = dutyOfficer?.Rank;
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         dbContext.Incidents.Add(incident);
@@ -601,6 +608,47 @@ public sealed class IncidentService(
             .OrderBy(assignment => assignment.AssignedAt)
             .ThenBy(assignment => assignment.Id)
             .ToListAsync(cancellationToken);
+
+        var primaryTransferSnapshot = await dbContext.IncidentTransfers
+            .AsNoTracking()
+            .Where(transfer => transfer.IncidentId == incident.Id &&
+                               transfer.ToDepartmentId == incident.CurrentDepartmentId)
+            .OrderByDescending(transfer => transfer.TransferDate)
+            .ThenByDescending(transfer => transfer.Id)
+            .Select(transfer => new
+            {
+                transfer.DutyOfficerFullNameSnapshot,
+                transfer.DutyOfficerRankSnapshot
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var primaryOfficerName = primaryTransferSnapshot?.DutyOfficerFullNameSnapshot;
+        var primaryOfficerRank = primaryTransferSnapshot?.DutyOfficerRankSnapshot;
+        if (primaryTransferSnapshot is null && incident.CurrentDepartmentId == incident.InitialReceivingDepartmentId)
+        {
+            primaryOfficerName = incident.InitialDutyOfficerFullNameSnapshot;
+            primaryOfficerRank = incident.InitialDutyOfficerRankSnapshot;
+        }
+
+        viewModel.DepartmentResponsibilities =
+        [
+            new DepartmentResponsibilityViewModel
+            {
+                DepartmentName = incident.CurrentDepartment.Name,
+                DepartmentColorClass = GetDepartmentColorClass(incident.CurrentDepartmentId),
+                IsPrimary = true,
+                DutyOfficerFullName = primaryOfficerName,
+                DutyOfficerRank = primaryOfficerRank
+            },
+            .. assignments.Select(assignment => new DepartmentResponsibilityViewModel
+            {
+                DepartmentName = assignment.Department.Name,
+                DepartmentColorClass = GetDepartmentColorClass(assignment.DepartmentId),
+                IsPrimary = false,
+                DutyOfficerFullName = assignment.DutyOfficerFullNameSnapshot,
+                DutyOfficerRank = assignment.DutyOfficerRankSnapshot
+            })
+        ];
 
         viewModel.DepartmentAssignments = assignments.Select(assignment => new IncidentDepartmentAssignmentViewModel
         {

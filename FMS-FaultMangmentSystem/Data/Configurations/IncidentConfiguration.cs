@@ -28,6 +28,10 @@ public class IncidentConfiguration : IEntityTypeConfiguration<Incident>
             .HasMaxLength(4000);
         builder.Property(incident => incident.ResolutionSteps)
             .HasMaxLength(8000);
+        builder.Property(incident => incident.InitialDutyOfficerFullNameSnapshot)
+            .HasMaxLength(200);
+        builder.Property(incident => incident.InitialDutyOfficerRankSnapshot)
+            .HasMaxLength(50);
         builder.Property(incident => incident.CreatedAt)
             .HasColumnType("datetime2(7)")
             .HasDefaultValueSql("SYSUTCDATETIME()");

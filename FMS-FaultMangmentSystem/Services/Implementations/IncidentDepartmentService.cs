@@ -12,7 +12,8 @@ public sealed class IncidentDepartmentService(
     ApplicationDbContext dbContext,
     ICurrentUserContext currentUser,
     IAuditLogService auditLogService,
-    IIncidentNotificationService notificationService) : IIncidentDepartmentService
+    IIncidentNotificationService notificationService,
+    IDutyOfficerSnapshotService dutyOfficerSnapshotService) : IIncidentDepartmentService
 {
     public async Task<ServiceResult<bool>> AssignDepartmentAsync(
         int incidentId,
@@ -72,6 +73,10 @@ public sealed class IncidentDepartmentService(
         }
 
         var now = DateTime.UtcNow;
+        var dutyOfficer = await dutyOfficerSnapshotService.GetForDepartmentAtAsync(
+            department.Id,
+            now,
+            cancellationToken);
         var previousIncidentStatus = incident.Status;
         var assignment = new IncidentDepartmentAssignment
         {
@@ -79,6 +84,8 @@ public sealed class IncidentDepartmentService(
             DepartmentId = department.Id,
             AssignedByUserId = actor.Id,
             AssignedAt = now,
+            DutyOfficerFullNameSnapshot = dutyOfficer?.FullName,
+            DutyOfficerRankSnapshot = dutyOfficer?.Rank,
             Status = IncidentDepartmentTaskStatus.Pending,
             RequiredTask = task
         };

@@ -21,6 +21,8 @@ public class IncidentDepartmentAssignmentConfiguration : IEntityTypeConfiguratio
         builder.Property(assignment => assignment.AssignedAt)
             .HasColumnType("datetime2(7)")
             .HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(assignment => assignment.DutyOfficerFullNameSnapshot).HasMaxLength(200);
+        builder.Property(assignment => assignment.DutyOfficerRankSnapshot).HasMaxLength(50);
         builder.Property(assignment => assignment.CompletedAt).HasColumnType("datetime2(7)");
         builder.Property(assignment => assignment.RemovedAt).HasColumnType("datetime2(7)");
         builder.Property(assignment => assignment.RemovalReason).HasMaxLength(2000);

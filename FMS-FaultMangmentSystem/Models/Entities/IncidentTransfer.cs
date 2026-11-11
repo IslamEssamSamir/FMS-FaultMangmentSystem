@@ -11,6 +11,8 @@ public class IncidentTransfer
     public string TransferredBySupervisorId { get; set; } = string.Empty;
     public string TransferReason { get; set; } = string.Empty;
     public DateTime TransferDate { get; set; } = DateTime.UtcNow;
+    public string? DutyOfficerFullNameSnapshot { get; set; }
+    public string? DutyOfficerRankSnapshot { get; set; }
     public Incident Incident { get; set; } = null!;
     public Department FromDepartment { get; set; } = null!;
     public Department ToDepartment { get; set; } = null!;

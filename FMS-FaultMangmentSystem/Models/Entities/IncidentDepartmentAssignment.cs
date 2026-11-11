@@ -10,6 +10,8 @@ public class IncidentDepartmentAssignment
     public int DepartmentId { get; set; }
     public string AssignedByUserId { get; set; } = string.Empty;
     public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
+    public string? DutyOfficerFullNameSnapshot { get; set; }
+    public string? DutyOfficerRankSnapshot { get; set; }
     public IncidentDepartmentTaskStatus Status { get; set; } = IncidentDepartmentTaskStatus.Pending;
     public string RequiredTask { get; set; } = string.Empty;
     public DateTime? CompletedAt { get; set; }

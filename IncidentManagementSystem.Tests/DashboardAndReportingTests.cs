@@ -277,7 +277,7 @@ public sealed class DashboardAndReportingTests
         new(dbContext, user);
 
     private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
-        new(dbContext, null!, user, null!);
+        new(dbContext, null!, user, null!, new DutyOfficerSnapshotService(dbContext));
 
     private static IncidentReportService CreateReportService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
         new(dbContext, user);

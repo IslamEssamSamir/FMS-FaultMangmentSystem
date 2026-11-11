@@ -5,6 +5,7 @@ using IncidentManagementSystem.Mapping;
 using IncidentManagementSystem.Models.Entities;
 using IncidentManagementSystem.Models.Enums;
 using IncidentManagementSystem.Models.Identity;
+using IncidentManagementSystem.Services;
 using IncidentManagementSystem.Services.Implementations;
 using IncidentManagementSystem.Services.Interfaces;
 using IncidentManagementSystem.ViewModels;
@@ -127,6 +128,63 @@ public class IncidentDepartmentServiceTests
         };
         Assert.True((await supervisor.AssignDepartmentAsync(fixture.Incident.Id, model)).Succeeded);
         Assert.False((await supervisor.AssignDepartmentAsync(fixture.Incident.Id, model)).Succeeded);
+    }
+
+    [Fact]
+    public async Task ParticipantResponsibilitiesKeepDutyOfficerSnapshotsAfterScheduleAndProfileChanges()
+    {
+        await using var dbContext = CreateDbContext();
+        var fixture = await SeedAsync(dbContext, IncidentStatus.Open);
+        fixture.ElectricityOfficer.Rank = "Captain";
+        fixture.MaintenanceOfficer.Rank = "Lieutenant";
+        fixture.SupervisorUser.Rank = "Major";
+        await dbContext.SaveChangesAsync();
+        await AddAllDayDutyAssignmentsAsync(dbContext, fixture.Electricity, fixture.ElectricityOfficer, fixture.SupervisorUser.Id);
+        await AddAllDayDutyAssignmentsAsync(dbContext, fixture.Maintenance, fixture.MaintenanceOfficer, fixture.SupervisorUser.Id);
+
+        var supervisor = Supervisor(fixture);
+        var departmentService = CreateDepartmentService(dbContext, supervisor);
+        Assert.True((await departmentService.AssignDepartmentAsync(fixture.Incident.Id,
+            new IncidentDepartmentAssignmentCreateViewModel { DepartmentId = fixture.Electricity.Id, RequiredTask = "Inspect the panel." })).Succeeded);
+        Assert.True((await departmentService.AssignDepartmentAsync(fixture.Incident.Id,
+            new IncidentDepartmentAssignmentCreateViewModel { DepartmentId = fixture.Maintenance.Id, RequiredTask = "Inspect the wiring." })).Succeeded);
+
+        var savedAssignments = await dbContext.IncidentDepartmentAssignments
+            .OrderBy(assignment => assignment.DepartmentId)
+            .ToListAsync();
+        Assert.Collection(savedAssignments,
+            assignment =>
+            {
+                Assert.Equal("Captain", assignment.DutyOfficerRankSnapshot);
+                Assert.Equal("Electricity Officer", assignment.DutyOfficerFullNameSnapshot);
+            },
+            assignment =>
+            {
+                Assert.Equal("Lieutenant", assignment.DutyOfficerRankSnapshot);
+                Assert.Equal("Maintenance Officer", assignment.DutyOfficerFullNameSnapshot);
+            });
+
+        var scheduledAssignments = await dbContext.ShiftAssignments
+            .Where(assignment => assignment.DepartmentId == fixture.Electricity.Id || assignment.DepartmentId == fixture.Maintenance.Id)
+            .ToListAsync();
+        foreach (var scheduledAssignment in scheduledAssignments)
+        {
+            scheduledAssignment.UserId = fixture.SupervisorUser.Id;
+        }
+        fixture.ElectricityOfficer.FullName = "Changed Electricity Officer";
+        fixture.ElectricityOfficer.Rank = "Commander";
+        await dbContext.SaveChangesAsync();
+
+        var details = await CreateIncidentService(dbContext, supervisor).GetDetailsAsync(fixture.Incident.Id);
+        Assert.True(details.Succeeded);
+        var participantRows = details.Data!.DepartmentResponsibilities.Where(row => !row.IsPrimary).ToList();
+        Assert.Equal(2, participantRows.Count);
+        Assert.Contains(participantRows, row => row.DepartmentName == "Electricity" &&
+                                                row.DutyOfficerFullName == "Electricity Officer" &&
+                                                row.DutyOfficerRank == "Captain");
+        Assert.Contains(participantRows, row => row.DepartmentName == "Maintenance" &&
+                                                row.DutyOfficerFullName == "Maintenance Officer" &&
+                                                row.DutyOfficerRank == "Lieutenant");
     }
 
     [Fact]
@@ -418,10 +476,10 @@ public class IncidentDepartmentServiceTests
         var primary = new Department { Name = "Primary", IsActive = true };
         var electricity = new Department { Name = "Electricity", IsActive = true };
         var maintenance = new Department { Name = "Maintenance", IsActive = true };
-        var supervisor = new ApplicationUser { Id = "supervisor", UserName = "supervisor", FullName = "Supervisor", IsActive = true };
-        var primaryOfficer = new ApplicationUser { Id = "primary-officer", UserName = "primary", FullName = "Primary Officer", Department = primary, IsActive = true };
-        var electricityOfficer = new ApplicationUser { Id = "electricity-officer", UserName = "electricity", FullName = "Electricity Officer", Department = electricity, IsActive = true };
-        var maintenanceOfficer = new ApplicationUser { Id = "maintenance-officer", UserName = "maintenance", FullName = "Maintenance Officer", Department = maintenance, IsActive = true };
+        var supervisor = new ApplicationUser { Id = "supervisor", UserName = "supervisor", FullName = "Supervisor", Rank = "Major", IsActive = true };
+        var primaryOfficer = new ApplicationUser { Id = "primary-officer", UserName = "primary", FullName = "Primary Officer", Rank = "Captain", Department = primary, IsActive = true };
+        var electricityOfficer = new ApplicationUser { Id = "electricity-officer", UserName = "electricity", FullName = "Electricity Officer", Rank = "Captain", Department = electricity, IsActive = true };
+        var maintenanceOfficer = new ApplicationUser { Id = "maintenance-officer", UserName = "maintenance", FullName = "Maintenance Officer", Rank = "Lieutenant", Department = maintenance, IsActive = true };
         var userRole = new IdentityRole { Id = "role-user", Name = RolePermissions.User, NormalizedName = RolePermissions.User.ToUpperInvariant() };
         var supervisorRole = new IdentityRole { Id = "role-supervisor", Name = RolePermissions.SystemSupervisor, NormalizedName = RolePermissions.SystemSupervisor.ToUpperInvariant() };
 
@@ -457,15 +515,58 @@ public class IncidentDepartmentServiceTests
         return new SeededData(primary, electricity, maintenance, supervisor, primaryOfficer, electricityOfficer, maintenanceOfficer, incident);
     }
 
+    private static async Task AddAllDayDutyAssignmentsAsync(
+        ApplicationDbContext dbContext,
+        Department department,
+        ApplicationUser officer,
+        string createdByUserId)
+    {
+        var definition = new ShiftDefinition
+        {
+            Name = $"All day {Guid.NewGuid():N}",
+            StartTime = TimeOnly.MinValue,
+            EndTime = TimeOnly.MinValue,
+            IsOvernight = true,
+            IsActive = true
+        };
+        dbContext.ShiftDefinitions.Add(definition);
+        await dbContext.SaveChangesAsync();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        for (var offset = -1; offset <= 1; offset++)
+        {
+            var shiftDate = today.AddDays(offset);
+            var weekStart = ShiftScheduleRules.GetWeekStart(shiftDate);
+            var schedule = await dbContext.WeeklyShiftSchedules.SingleOrDefaultAsync(item => item.WeekStartDate == weekStart);
+            if (schedule is null)
+            {
+                schedule = new WeeklyShiftSchedule { WeekStartDate = weekStart, CreatedByUserId = createdByUserId };
+                dbContext.WeeklyShiftSchedules.Add(schedule);
+                await dbContext.SaveChangesAsync();
+            }
+
+            dbContext.ShiftAssignments.Add(new ShiftAssignment
+            {
+                WeeklyShiftScheduleId = schedule.Id,
+                DepartmentId = department.Id,
+                UserId = officer.Id,
+                ShiftDefinitionId = definition.Id,
+                ShiftDate = shiftDate
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
     private static IncidentDepartmentService CreateDepartmentService(ApplicationDbContext dbContext, TestCurrentUserContext user)
     {
         var auditLog = new AuditLogService(dbContext, CreateMapper(), user);
         var notifications = new IncidentNotificationService(dbContext, user);
-        return new IncidentDepartmentService(dbContext, user, auditLog, notifications);
+        return new IncidentDepartmentService(dbContext, user, auditLog, notifications, new DutyOfficerSnapshotService(dbContext));
     }
 
     private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, TestCurrentUserContext user) =>
-        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user));
+        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user), new DutyOfficerSnapshotService(dbContext));
 
     private static IMapper CreateMapper() => new MapperConfiguration(configuration =>
     {

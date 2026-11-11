@@ -76,6 +76,16 @@ public class IncidentDetailsViewModel : IncidentListItemViewModel
     public IReadOnlyList<IncidentStatusHistoryViewModel> StatusHistory { get; set; } = [];
     public IReadOnlyList<IncidentDepartmentAssignmentViewModel> DepartmentAssignments { get; set; } = [];
     public IReadOnlyList<IncidentActivityViewModel> ActivityTimeline { get; set; } = [];
+    public IReadOnlyList<DepartmentResponsibilityViewModel> DepartmentResponsibilities { get; set; } = [];
+}
+
+public class DepartmentResponsibilityViewModel
+{
+    public string DepartmentName { get; set; } = string.Empty;
+    public string DepartmentColorClass { get; set; } = string.Empty;
+    public bool IsPrimary { get; set; }
+    public string? DutyOfficerFullName { get; set; }
+    public string? DutyOfficerRank { get; set; }
 }
 
 public class IncidentDetailsPageViewModel

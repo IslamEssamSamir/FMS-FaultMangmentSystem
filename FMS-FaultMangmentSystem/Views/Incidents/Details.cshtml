@@ -126,6 +126,69 @@
     }
 </section>
 
+<section class="form-panel responsibility-panel mb-4" aria-labelledby="departmentResponsibilityHeading">
+    <div class="participant-heading">
+        <div>
+            <h2 id="departmentResponsibilityHeading" class="h5 mb-1">بيانات المسؤولية عن العطل</h2>
+            <p class="text-muted mb-0">بيانات الضابط النبطشي محفوظة وفق وقت بدء مسؤولية كل قسم.</p>
+        </div>
+    </div>
+    @if (incident.DepartmentResponsibilities.Count == 0)
+    {
+        <div class="empty-state participant-empty">
+            <p class="mb-0">لا تتوفر بيانات مسؤولية مسجلة لهذا البلاغ.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive responsibility-table-wrap">
+            <table class="table align-middle responsibility-table">
+                <thead>
+                    <tr>
+                        <th scope="col">القسم</th>
+                        <th scope="col">نوع المشاركة</th>
+                        <th scope="col">الضابط النبطشي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var responsibility in incident.DepartmentResponsibilities)
+                    {
+                        <tr class="@(responsibility.IsPrimary ? "responsibility-primary-row" : null)">
+                            <td>
+                                <span class="responsibility-department">
+                                    <span class="department-color-indicator @responsibility.DepartmentColorClass" aria-hidden="true"></span>
+                                    <span>@responsibility.DepartmentName</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="responsibility-badge @(responsibility.IsPrimary ? "responsibility-badge-primary" : "responsibility-badge-participating")">
+                                    @(responsibility.IsPrimary ? "رئيسي" : "مشارك")
+                                </span>
+                            </td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(responsibility.DutyOfficerFullName))
+                                {
+                                    <span class="responsibility-unavailable">غير متوفر تاريخيًا</span>
+                                }
+                                else
+                                {
+                                    <span class="responsibility-officer">
+                                        @if (!string.IsNullOrWhiteSpace(responsibility.DutyOfficerRank))
+                                        {
+                                            <span class="responsibility-officer-rank">@responsibility.DutyOfficerRank</span>
+                                        }
+                                        <span>@responsibility.DutyOfficerFullName</span>
+                                    </span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
 <section class="form-panel participant-departments mb-4" aria-labelledby="participantDepartmentsHeading">
     <div class="participant-heading">
         <div>

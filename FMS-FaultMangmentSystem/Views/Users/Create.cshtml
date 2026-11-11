@@ -2,5 +2,56 @@
 @using IncidentManagementSystem.Authorization
 @{ ViewData["Title"] = "إضافة مستخدم"; }
 <div class="page-heading"><div><span class="welcome-kicker">إدارة الوصول</span><h1>إضافة مستخدم</h1><p>أنشئ حساباً جديداً وحدد القسم والدور المصرح به.</p></div><a asp-action="Index" class="btn btn-light">العودة للقائمة</a></div>
-<div class="form-panel"><form asp-action="Create" method="post"><div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div><div class="mb-3"><label asp-for="FullName" class="form-label">الاسم الكامل</label><input asp-for="FullName" class="form-control" autocomplete="name" /><span asp-validation-for="FullName" class="text-danger"></span></div><div class="mb-3"><label asp-for="Email" class="form-label">البريد الإلكتروني</label><input asp-for="Email" class="form-control" autocomplete="email" dir="ltr" /><span asp-validation-for="Email" class="text-danger"></span></div><div class="mb-3"><label asp-for="Password" class="form-label">كلمة المرور الأولية</label><input asp-for="Password" class="form-control" autocomplete="new-password" /><span asp-validation-for="Password" class="text-danger"></span><div class="form-text">يجب أن تتوافق كلمة المرور مع سياسة الأمان المعتمدة.</div></div><div class="mb-3"><label asp-for="DepartmentId" class="form-label">القسم</label><select asp-for="DepartmentId" class="form-select"><option value="">اختر القسم</option>@foreach (var department in (IEnumerable<DepartmentViewModel>)ViewBag.Departments) { <option value="@department.Id">@department.Name</option> }</select><span asp-validation-for="DepartmentId" class="text-danger"></span></div><div class="mb-4"><label asp-for="RoleName" class="form-label">الدور</label><select asp-for="RoleName" class="form-select"><option value="">اختر الدور</option>@foreach (var role in (IEnumerable<string>)ViewBag.Roles) { <option value="@role">@role</option> }</select><span asp-validation-for="RoleName" class="text-danger"></span></div><div class="form-actions"><button type="submit" class="btn btn-primary">إنشاء المستخدم</button><a asp-action="Index" class="btn btn-light">إلغاء</a></div></form></div>
+<div class="form-panel">
+    <form asp-action="Create" method="post">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="FullName" class="form-label">الاسم الكامل</label>
+            <input asp-for="FullName" class="form-control" autocomplete="name" />
+            <span asp-validation-for="FullName" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Rank" class="form-label">الرتبة</label>
+            <input asp-for="Rank" class="form-control" maxlength="50" />
+            <span asp-validation-for="Rank" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Email" class="form-label">البريد الإلكتروني</label>
+            <input asp-for="Email" class="form-control" autocomplete="email" dir="ltr" />
+            <span asp-validation-for="Email" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Password" class="form-label">كلمة المرور الأولية</label>
+            <input asp-for="Password" class="form-control" autocomplete="new-password" />
+            <span asp-validation-for="Password" class="text-danger"></span>
+            <div class="form-text">يجب أن تتوافق كلمة المرور مع سياسة الأمان المعتمدة.</div>
+        </div>
+        <div class="mb-3">
+            <label asp-for="DepartmentId" class="form-label">القسم</label>
+            <select asp-for="DepartmentId" class="form-select">
+                <option value="">اختر القسم</option>
+                @foreach (var department in (IEnumerable<DepartmentViewModel>)ViewBag.Departments)
+                {
+                    <option value="@department.Id">@department.Name</option>
+                }
+            </select>
+            <span asp-validation-for="DepartmentId" class="text-danger"></span>
+        </div>
+        <div class="mb-4">
+            <label asp-for="RoleName" class="form-label">الدور</label>
+            <select asp-for="RoleName" class="form-select">
+                <option value="">اختر الدور</option>
+                @foreach (var role in (IEnumerable<string>)ViewBag.Roles)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+            <span asp-validation-for="RoleName" class="text-danger"></span>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">إنشاء المستخدم</button>
+            <a asp-action="Index" class="btn btn-light">إلغاء</a>
+        </div>
+    </form>
+</div>
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

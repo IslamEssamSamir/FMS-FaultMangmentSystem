@@ -14,7 +14,8 @@ public sealed class IncidentTransferService(
     ApplicationDbContext dbContext,
     IMapper mapper,
     ICurrentUserContext currentUser,
-    IAuditLogService auditLogService) : IIncidentTransferService
+    IAuditLogService auditLogService,
+    IDutyOfficerSnapshotService dutyOfficerSnapshotService) : IIncidentTransferService
 {
     public async Task<ServiceResult<TransferRequestViewModel>> SubmitRequestAsync(
         int incidentId,
@@ -669,6 +670,10 @@ public sealed class IncidentTransferService(
         if (approve)
         {
             request.RequestStatus = TransferRequestStatus.Approved;
+            var dutyOfficer = await dutyOfficerSnapshotService.GetForDepartmentAtAsync(
+                targetDepartment!.Id,
+                now,
+                cancellationToken);
             request.Incident.CurrentDepartmentId = targetDepartment!.Id;
             request.Incident.CurrentResponsibleUserId = null;
             request.Incident.UpdatedAt = now;
@@ -679,7 +684,9 @@ public sealed class IncidentTransferService(
                 ToDepartmentId = targetDepartment.Id,
                 TransferredBySupervisorId = actor.Id,
                 TransferDate = now,
-                TransferReason = request.Reason
+                TransferReason = request.Reason,
+                DutyOfficerFullNameSnapshot = dutyOfficer?.FullName,
+                DutyOfficerRankSnapshot = dutyOfficer?.Rank
             });
         }
         else

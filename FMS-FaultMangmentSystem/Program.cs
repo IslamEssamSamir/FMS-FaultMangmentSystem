@@ -62,6 +62,7 @@ builder.Services.AddScoped<IIncidentNotificationService, IncidentNotificationSer
 builder.Services.AddScoped<IIncidentTransferService, IncidentTransferService>();
 builder.Services.AddScoped<IIncidentReviewService, IncidentReviewService>();
 builder.Services.AddScoped<IShiftScheduleService, ShiftScheduleService>();
+builder.Services.AddScoped<IDutyOfficerSnapshotService, DutyOfficerSnapshotService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IIncidentReportService, IncidentReportService>();
 
