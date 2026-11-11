@@ -1319,15 +1319,22 @@ textarea {
 .task-status-removed { color: #334155; background: #e2e8f0; }
 .department-task { margin-top: 16px; padding: 12px; border-radius: 8px; color: #172554; background: var(--department-surface); }
 .department-task strong { display: block; margin-bottom: 5px; }
-.department-action-list, .department-history { margin-top: 16px; }
-.department-action-list h4 { margin-bottom: 8px; }
-.department-action { margin-top: 8px; padding: 10px 12px; border-inline-start: 3px solid var(--department-accent); border-radius: 6px; background: #fff; }
-.department-action-meta { justify-content: flex-start; margin-bottom: 6px; font-size: .75rem; }
+.primary-department-card { margin-bottom: 14px; }
+.task-status-primary { color: #172554; background: #e2e8f0; }
+.department-history { margin-top: 16px; }
 .department-history summary { cursor: pointer; color: #172554; font-size: .83rem; font-weight: 700; }
 .department-history-entry { display: grid; gap: 4px; margin-top: 8px; padding: 9px 12px; border-inline-start: 2px solid var(--department-accent); font-size: .78rem; }
 .department-officer-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .department-remove-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .department-removal-note { margin-top: 14px; color: #475569; font-size: .8rem; }
+.timeline-list { display: grid; gap: 12px; }
+.incident-timeline-entry { padding: 14px 16px; border: 1px solid var(--line); border-inline-start: 5px solid var(--department-accent); border-radius: 10px; background: linear-gradient(90deg, var(--department-surface), #fff 50%); }
+.timeline-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.timeline-heading time { color: var(--muted); font-size: .75rem; }
+.timeline-department-type { display: block; color: #334155; font-size: .72rem; }
+.timeline-author { margin-top: 10px; color: #334155; font-size: .78rem; font-weight: 700; }
+.timeline-description { margin: 4px 0 0; color: #172554; }
+.timeline-assignment-context { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); color: #334155; font-size: .74rem; }
 .notification-list { display: grid; gap: 12px; }
 .notification-card { align-items: flex-start; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .notification-unread { border-inline-start: 4px solid #1d4ed8; background: #f8fbff; }

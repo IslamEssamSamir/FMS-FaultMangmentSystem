@@ -282,7 +282,7 @@ public class IncidentDepartmentServiceTests
     }
 
     [Fact]
-    public async Task DepartmentDetailsAreScopedToTheOfficersOwnDepartment()
+    public async Task AuthorizedDepartmentOfficersSeeAllAssignmentsAndUnifiedTimeline()
     {
         await using var dbContext = CreateDbContext();
         var fixture = await SeedAsync(dbContext, IncidentStatus.Open);
@@ -298,13 +298,87 @@ public class IncidentDepartmentServiceTests
                 })).Succeeded);
         }
 
-        var officerContext = DepartmentOfficer(fixture, fixture.ElectricityOfficer);
-        var details = await CreateIncidentService(dbContext, officerContext).GetDetailsAsync(fixture.Incident.Id);
+        var electricityAssignment = await dbContext.IncidentDepartmentAssignments
+            .SingleAsync(assignment => assignment.DepartmentId == fixture.Electricity.Id);
+        var maintenanceAssignment = await dbContext.IncidentDepartmentAssignments
+            .SingleAsync(assignment => assignment.DepartmentId == fixture.Maintenance.Id);
+        var electricityService = CreateDepartmentService(dbContext, DepartmentOfficer(fixture, fixture.ElectricityOfficer));
+        var maintenanceService = CreateDepartmentService(dbContext, DepartmentOfficer(fixture, fixture.MaintenanceOfficer));
+        Assert.True((await electricityService.AddActionAsync(
+            fixture.Incident.Id,
+            electricityAssignment.Id,
+            new IncidentDepartmentActionCreateViewModel { ActionDescription = "Electrical inspection complete." })).Succeeded);
+        Assert.True((await maintenanceService.AddActionAsync(
+            fixture.Incident.Id,
+            maintenanceAssignment.Id,
+            new IncidentDepartmentActionCreateViewModel { ActionDescription = "Mechanical inspection complete." })).Succeeded);
 
-        Assert.True(details.Succeeded);
-        var assignment = Assert.Single(details.Data!.DepartmentAssignments);
-        Assert.Equal(fixture.Electricity.Id, assignment.DepartmentId);
-        Assert.Equal("department-color-" + (fixture.Electricity.Id % 8), assignment.DepartmentColorClass);
+        var timelineStart = DateTime.UtcNow.AddMinutes(-3);
+        var electricityAction = await dbContext.IncidentDepartmentActions.SingleAsync(action => action.AssignmentId == electricityAssignment.Id);
+        var maintenanceAction = await dbContext.IncidentDepartmentActions.SingleAsync(action => action.AssignmentId == maintenanceAssignment.Id);
+        electricityAction.ActionDate = timelineStart.AddMinutes(1);
+        maintenanceAction.ActionDate = timelineStart.AddMinutes(2);
+
+        var primaryOfficer = UserContext(
+            fixture.PrimaryOfficer,
+            [RolePermissions.User],
+            [Permissions.ViewDepartmentIncidents, Permissions.AddIncidentActions]);
+        Assert.True((await CreateIncidentService(dbContext, primaryOfficer).AddActionAsync(
+            fixture.Incident.Id,
+            new IncidentActionCreateViewModel { ActionDescription = "Primary department review complete." })).Succeeded);
+        var primaryAction = await dbContext.IncidentActions.SingleAsync();
+        primaryAction.ActionDate = timelineStart;
+        fixture.Incident.CurrentDepartmentId = fixture.Electricity.Id;
+        dbContext.IncidentTransfers.Add(new IncidentTransfer
+        {
+            IncidentId = fixture.Incident.Id,
+            FromDepartmentId = fixture.Primary.Id,
+            ToDepartmentId = fixture.Electricity.Id,
+            TransferredBySupervisorId = fixture.SupervisorUser.Id,
+            TransferReason = "Specialist department required.",
+            TransferDate = timelineStart.AddMinutes(3)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var electricityDetails = await CreateIncidentService(
+            dbContext,
+            DepartmentOfficer(fixture, fixture.ElectricityOfficer)).GetDetailsAsync(fixture.Incident.Id);
+        var maintenanceDetails = await CreateIncidentService(
+            dbContext,
+            DepartmentOfficer(fixture, fixture.MaintenanceOfficer)).GetDetailsAsync(fixture.Incident.Id);
+
+        Assert.True(electricityDetails.Succeeded);
+        Assert.True(maintenanceDetails.Succeeded);
+        var details = electricityDetails.Data!;
+        Assert.Equal(2, details.DepartmentAssignments.Count);
+        Assert.Equal(
+            new[] { fixture.Electricity.Id, fixture.Maintenance.Id },
+            details.DepartmentAssignments.Select(assignment => assignment.DepartmentId).Order().ToArray());
+        Assert.All(details.DepartmentAssignments, assignment =>
+            Assert.Equal("department-color-" + (assignment.DepartmentId % 8), assignment.DepartmentColorClass));
+        Assert.All(details.DepartmentAssignments, assignment => Assert.Single(assignment.Actions));
+
+        var timeline = details.ActivityTimeline;
+        Assert.Equal(3, timeline.Count);
+        Assert.Equal(new[] { "Primary", "Participating", "Participating" },
+            timeline.Select(activity => activity.DepartmentType).ToArray());
+        Assert.Equal(new[]
+        {
+            "Primary department review complete.",
+            "Electrical inspection complete.",
+            "Mechanical inspection complete."
+        }, timeline.Select(activity => activity.Description).ToArray());
+        Assert.Equal(timeline.OrderBy(activity => activity.ActivityAt).Select(activity => activity.ActivityAt),
+            timeline.Select(activity => activity.ActivityAt));
+        Assert.Equal(fixture.Primary.Id, timeline[0].DepartmentId);
+        Assert.Equal(fixture.Primary.Name, timeline[0].DepartmentName);
+        Assert.Equal("department-color-" + (fixture.Primary.Id % 8), timeline[0].DepartmentColorClass);
+        Assert.Equal(electricityAssignment.Id, timeline[1].AssignmentId);
+        Assert.Equal(fixture.Electricity.Id, timeline[1].DepartmentId);
+        Assert.Equal(maintenanceAssignment.Id, timeline[2].AssignmentId);
+        Assert.Equal(fixture.Maintenance.Id, timeline[2].DepartmentId);
+        Assert.Equal(timeline.Select(activity => (activity.DepartmentId, activity.DepartmentType, activity.Description)),
+            maintenanceDetails.Data!.ActivityTimeline.Select(activity => (activity.DepartmentId, activity.DepartmentType, activity.Description)));
     }
 
     [Fact]

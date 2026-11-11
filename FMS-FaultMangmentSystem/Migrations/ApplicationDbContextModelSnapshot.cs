@@ -220,6 +220,9 @@ namespace IncidentManagementSystem.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<int>("DepartmentId")
+                        .HasColumnType("int");
+
                     b.Property<int>("IncidentId")
                         .HasColumnType("int");
 
@@ -228,6 +231,8 @@ namespace IncidentManagementSystem.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("UserId");
 
@@ -1008,6 +1013,12 @@ namespace IncidentManagementSystem.Migrations
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentAction", b =>
                 {
+                    b.HasOne("IncidentManagementSystem.Models.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("IncidentManagementSystem.Models.Entities.Incident", "Incident")
                         .WithMany()
                         .HasForeignKey("IncidentId")
@@ -1019,6 +1030,8 @@ namespace IncidentManagementSystem.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Department");
 
                     b.Navigation("Incident");
 

@@ -16,9 +16,14 @@ public class IncidentActionConfiguration : IEntityTypeConfiguration<IncidentActi
             .HasColumnType("datetime2(7)")
             .HasDefaultValueSql("SYSUTCDATETIME()");
         builder.HasIndex(action => new { action.IncidentId, action.ActionDate });
+        builder.HasIndex(action => action.DepartmentId);
         builder.HasOne(action => action.Incident)
             .WithMany()
             .HasForeignKey(action => action.IncidentId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(action => action.Department)
+            .WithMany()
+            .HasForeignKey(action => action.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(action => action.User)
             .WithMany()

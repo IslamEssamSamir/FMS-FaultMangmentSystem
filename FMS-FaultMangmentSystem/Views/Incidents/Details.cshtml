@@ -140,6 +140,16 @@
         }
     </div>
 
+    <article class="department-card @incident.CurrentDepartmentColorClass primary-department-card">
+        <div class="department-title-wrap">
+            <span class="department-color-indicator" aria-hidden="true"></span>
+            <div>
+                <h3 class="h6 mb-1">@incident.CurrentDepartmentName</h3>
+                <span class="task-status-badge task-status-primary">القسم الأساسي المسؤول</span>
+            </div>
+        </div>
+    </article>
+
     @if (incident.DepartmentAssignments.Count == 0)
     {
         <div class="empty-state participant-empty">
@@ -187,23 +197,6 @@
                         <strong>المهمة المطلوبة</strong>
                         <p class="mb-0" style="white-space: pre-wrap">@assignment.RequiredTask</p>
                     </div>
-
-                    @if (assignment.Actions.Count > 0)
-                    {
-                        <div class="department-action-list">
-                            <h4 class="h6">سجل إجراءات القسم</h4>
-                            @foreach (var action in assignment.Actions)
-                            {
-                                <article class="department-action">
-                                    <div class="department-action-meta">
-                                        <strong>@action.UserFullName</strong>
-                                        <time datetime="@action.ActionDate.ToString("O")">@action.ActionDate.ToLocalTime().ToString("g")</time>
-                                    </div>
-                                    <p class="mb-0" style="white-space: pre-wrap">@action.ActionDescription</p>
-                                </article>
-                            }
-                        </div>
-                    }
 
                     @if (assignment.History.Count > 0)
                     {
@@ -345,17 +338,48 @@
     }
 </section>
 
-@if (incident.Actions.Count > 0)
+@if (incident.ActivityTimeline.Count > 0)
 {
-    <section class="form-panel">
-        <h2 class="h5">سجل الإجراءات</h2>
-        @foreach (var action in incident.Actions)
+    <section class="form-panel incident-action-timeline mb-4" aria-labelledby="incidentActionTimelineHeading">
+        <h2 id="incidentActionTimelineHeading" class="h5">سجل إجراءات العطل</h2>
+        <div class="timeline-list">
+        @foreach (var activity in incident.ActivityTimeline)
         {
-            <article class="border-bottom py-3">
-                <div class="d-flex justify-content-between"><strong>@action.UserFullName</strong><time>@action.ActionDate.ToLocalTime().ToString("g")</time></div>
-                <p class="mb-0" style="white-space: pre-wrap">@action.ActionDescription</p>
+            var departmentTypeLabel = activity.DepartmentType == "Primary" ? "القسم الأساسي" : "قسم مشارك";
+            <article class="incident-timeline-entry @activity.DepartmentColorClass">
+                <div class="timeline-heading">
+                    <div class="department-title-wrap">
+                        <span class="department-color-indicator" aria-hidden="true"></span>
+                        <div>
+                            <strong>@activity.DepartmentName</strong>
+                            <span class="timeline-department-type">@departmentTypeLabel</span>
+                        </div>
+                    </div>
+                    <time datetime="@activity.ActivityAt.ToString("O")">@activity.ActivityAt.ToLocalTime().ToString("g")</time>
+                </div>
+                <div class="timeline-author">@activity.ActorName</div>
+                <p class="timeline-description" style="white-space: pre-wrap">@activity.Description</p>
+                @if (activity.AssignmentId is int assignmentId)
+                {
+                    var assignmentStatusLabel = activity.AssignmentStatus switch
+                    {
+                        IncidentDepartmentTaskStatus.Pending => "قيد الانتظار",
+                        IncidentDepartmentTaskStatus.InProgress => "قيد التنفيذ",
+                        IncidentDepartmentTaskStatus.Completed => "مكتملة",
+                        _ => "غير معروفة"
+                    };
+                    <div class="timeline-assignment-context">
+                        <span>مهمة الإسناد #@assignmentId</span>
+                        <span>الحالة: @assignmentStatusLabel</span>
+                        @if (!string.IsNullOrWhiteSpace(activity.AssignmentRequiredTask))
+                        {
+                            <span>المهمة: @activity.AssignmentRequiredTask</span>
+                        }
+                    </div>
+                }
             </article>
         }
+        </div>
     </section>
 }
 

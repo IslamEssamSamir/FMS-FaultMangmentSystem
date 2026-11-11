@@ -37,6 +37,7 @@ public class IncidentListItemViewModel
     public string Title { get; set; } = string.Empty;
     public IncidentStatus Status { get; set; }
     public string CurrentDepartmentName { get; set; } = string.Empty;
+    public string CurrentDepartmentColorClass { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
 
@@ -136,9 +137,15 @@ public class IncidentDepartmentAssignmentHistoryViewModel
 
 public class IncidentActivityViewModel
 {
+    public int Id { get; set; }
     public DateTime ActivityAt { get; set; }
+    public int DepartmentId { get; set; }
     public string? DepartmentName { get; set; }
     public string? DepartmentColorClass { get; set; }
+    public string DepartmentType { get; set; } = string.Empty;
+    public int? AssignmentId { get; set; }
+    public string? AssignmentRequiredTask { get; set; }
+    public IncidentDepartmentTaskStatus? AssignmentStatus { get; set; }
     public string ActivityType { get; set; } = string.Empty;
     public string ActorName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

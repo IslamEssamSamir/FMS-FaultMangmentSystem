@@ -99,7 +99,7 @@ public sealed class IncidentService(
         incident.CurrentDepartment = receivingDepartment;
         incident.ReportedByUser = actor;
         return ServiceResult<IncidentDetailsViewModel>.Success(
-            await ToDetailsViewModelAsync(incident, incident.CurrentDepartmentId, cancellationToken));
+            await ToDetailsViewModelAsync(incident, cancellationToken));
     }
 
     public async Task<ServiceResult<IReadOnlyList<DepartmentViewModel>>> GetSearchDepartmentsAsync(
@@ -318,7 +318,7 @@ public sealed class IncidentService(
         }
 
         return ServiceResult<IncidentDetailsViewModel>.Success(
-            await ToDetailsViewModelAsync(incident, canViewAll ? null : actor.DepartmentId, cancellationToken));
+            await ToDetailsViewModelAsync(incident, cancellationToken));
     }
 
     public async Task<ServiceResult<bool>> OpenAsync(
@@ -412,6 +412,7 @@ public sealed class IncidentService(
         var action = mapper.Map<IncidentAction>(model);
         action.IncidentId = incident!.Id;
         action.UserId = actor.Id;
+        action.DepartmentId = actor.DepartmentId!.Value;
         action.ActionDescription = model.ActionDescription.Trim();
         action.ActionDate = now;
         dbContext.IncidentActions.Add(action);
@@ -576,25 +577,19 @@ public sealed class IncidentService(
 
     private async Task<IncidentDetailsViewModel> ToDetailsViewModelAsync(
         Incident incident,
-        int? visibleDepartmentId,
         CancellationToken cancellationToken)
     {
         var viewModel = mapper.Map<IncidentDetailsViewModel>(incident);
         viewModel.CurrentDepartmentName = incident.CurrentDepartment.Name;
+        viewModel.CurrentDepartmentColorClass = GetDepartmentColorClass(incident.CurrentDepartmentId);
         viewModel.ReportingDepartmentName = incident.ReportingDepartment.Name;
         viewModel.InitialReceivingDepartmentName = incident.InitialReceivingDepartment.Name;
         viewModel.CurrentResponsibleUserName = incident.CurrentResponsibleUser?.FullName;
         viewModel.ResolvedByUserName = incident.ResolvedByUser?.FullName;
 
-        var assignmentQuery = dbContext.IncidentDepartmentAssignments
+        var assignments = await dbContext.IncidentDepartmentAssignments
             .AsNoTracking()
-            .Where(assignment => assignment.IncidentId == incident.Id);
-        if (visibleDepartmentId.HasValue)
-        {
-            assignmentQuery = assignmentQuery.Where(assignment => assignment.DepartmentId == visibleDepartmentId.Value);
-        }
-
-        var assignments = await assignmentQuery
+            .Where(assignment => assignment.IncidentId == incident.Id)
             .Include(assignment => assignment.Department)
             .Include(assignment => assignment.AssignedByUser)
             .Include(assignment => assignment.RemovedByUser)
@@ -649,8 +644,10 @@ public sealed class IncidentService(
         var actions = await dbContext.IncidentActions
             .AsNoTracking()
             .Include(action => action.User)
+            .Include(action => action.Department)
             .Where(action => action.IncidentId == incident.Id)
             .OrderBy(action => action.ActionDate)
+            .ThenBy(action => action.Id)
             .ToListAsync(cancellationToken);
         var actionViewModels = mapper.Map<List<IncidentActionViewModel>>(actions);
         for (var index = 0; index < actions.Count; index++)
@@ -659,6 +656,38 @@ public sealed class IncidentService(
         }
 
         viewModel.Actions = actionViewModels;
+        viewModel.ActivityTimeline = actions.Select(action => new IncidentActivityViewModel
+        {
+            Id = action.Id,
+            ActivityAt = action.ActionDate,
+            DepartmentId = action.DepartmentId,
+            DepartmentName = action.Department.Name,
+            DepartmentColorClass = GetDepartmentColorClass(action.DepartmentId),
+            DepartmentType = "Primary",
+            ActivityType = "Action",
+            ActorName = action.User.FullName,
+            Description = action.ActionDescription
+        })
+        .Concat(assignments.SelectMany(assignment => assignment.Actions.Select(action => new IncidentActivityViewModel
+        {
+            Id = action.Id,
+            ActivityAt = action.ActionDate,
+            DepartmentId = assignment.DepartmentId,
+            DepartmentName = assignment.Department.Name,
+            DepartmentColorClass = GetDepartmentColorClass(assignment.DepartmentId),
+            DepartmentType = "Participating",
+            AssignmentId = assignment.Id,
+            AssignmentRequiredTask = assignment.RequiredTask,
+            AssignmentStatus = assignment.Status,
+            ActivityType = "Action",
+            ActorName = action.User.FullName,
+            Description = action.ActionDescription
+        })))
+        .OrderBy(activity => activity.ActivityAt)
+        .ThenBy(activity => activity.DepartmentId)
+        .ThenBy(activity => activity.Id)
+        .ThenBy(activity => activity.AssignmentId)
+        .ToList();
 
         var reviews = await dbContext.IncidentReviews
             .AsNoTracking()

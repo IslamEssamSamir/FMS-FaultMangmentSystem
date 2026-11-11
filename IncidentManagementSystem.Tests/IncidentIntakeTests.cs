@@ -431,6 +431,7 @@ public class IncidentIntakeTests
         var savedAction = await dbContext.IncidentActions.SingleAsync();
         Assert.Equal(seeded.ReceivingOfficer.Id, savedAction.UserId);
         Assert.Equal(incident.Id, savedAction.IncidentId);
+        Assert.Equal(seeded.ReceivingDepartment.Id, savedAction.DepartmentId);
         Assert.NotEqual(default, savedAction.ActionDate);
 
         var departmentOfficer = new ApplicationUser
