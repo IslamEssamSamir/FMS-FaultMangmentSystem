@@ -34,7 +34,8 @@ public class PermissionAuthorizationTests
                 Permissions.ReviewTransferRequests,
                 Permissions.ReviewResolvedIncidents,
                 Permissions.RejectIncidentResolution,
-                Permissions.CloseIncidents
+                Permissions.CloseIncidents,
+                Permissions.ManageIncidentDepartmentAssignments
             ],
             [RolePermissions.User] =
             [
@@ -43,6 +44,8 @@ public class PermissionAuthorizationTests
                 Permissions.AddIncidentActions,
                 Permissions.ResolveIncidents,
                 Permissions.SubmitTransferRequests,
+                Permissions.AddDepartmentIncidentActions,
+                Permissions.UpdateDepartmentIncidentTasks,
                 Permissions.SubmitComplaints
             ],
             [RolePermissions.CivilianEmployee] =
@@ -57,7 +60,7 @@ public class PermissionAuthorizationTests
             Assert.Equal(permissions.OrderBy(permission => permission, StringComparer.Ordinal), RolePermissions.All[role].OrderBy(permission => permission, StringComparer.Ordinal));
         }
 
-        Assert.Equal(20, Permissions.All.Count);
+        Assert.Equal(23, Permissions.All.Count);
     }
 
     [Fact]

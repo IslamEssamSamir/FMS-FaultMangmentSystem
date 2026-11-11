@@ -1282,3 +1282,61 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+.participant-heading, .department-card-header, .department-title-wrap, .department-action-meta,
+.notification-title-row, .notification-card, .notification-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.participant-heading { margin-bottom: 18px; }
+.participant-list { display: grid; gap: 14px; }
+.participant-empty { min-height: 150px; margin-top: 16px; }
+.department-card {
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-inline-start: 5px solid var(--department-accent);
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--department-surface), #fff 42%);
+}
+.department-color-0 { --department-accent: #0f766e; --department-surface: #f0fdfa; }
+.department-color-1 { --department-accent: #1d4ed8; --department-surface: #eff6ff; }
+.department-color-2 { --department-accent: #6d28d9; --department-surface: #f5f3ff; }
+.department-color-3 { --department-accent: #a16207; --department-surface: #fefce8; }
+.department-color-4 { --department-accent: #be123c; --department-surface: #fff1f2; }
+.department-color-5 { --department-accent: #0e7490; --department-surface: #ecfeff; }
+.department-color-6 { --department-accent: #15803d; --department-surface: #f0fdf4; }
+.department-color-7 { --department-accent: #475569; --department-surface: #f8fafc; }
+.department-title-wrap { justify-content: flex-start; }
+.department-color-indicator { width: 14px; height: 14px; flex: 0 0 14px; border-radius: 50%; background: var(--department-accent); }
+.department-card h3 { color: #172554; }
+.assignment-dates { display: grid; justify-items: end; font-size: .75rem; }
+.task-status-badge { display: inline-block; margin-inline-end: 4px; padding: 3px 9px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+.task-status-pending { color: #7c2d12; background: #ffedd5; }
+.task-status-progress { color: #1e3a8a; background: #dbeafe; }
+.task-status-completed { color: #166534; background: #dcfce7; }
+.task-status-removed { color: #334155; background: #e2e8f0; }
+.department-task { margin-top: 16px; padding: 12px; border-radius: 8px; color: #172554; background: var(--department-surface); }
+.department-task strong { display: block; margin-bottom: 5px; }
+.department-action-list, .department-history { margin-top: 16px; }
+.department-action-list h4 { margin-bottom: 8px; }
+.department-action { margin-top: 8px; padding: 10px 12px; border-inline-start: 3px solid var(--department-accent); border-radius: 6px; background: #fff; }
+.department-action-meta { justify-content: flex-start; margin-bottom: 6px; font-size: .75rem; }
+.department-history summary { cursor: pointer; color: #172554; font-size: .83rem; font-weight: 700; }
+.department-history-entry { display: grid; gap: 4px; margin-top: 8px; padding: 9px 12px; border-inline-start: 2px solid var(--department-accent); font-size: .78rem; }
+.department-officer-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.department-remove-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.department-removal-note { margin-top: 14px; color: #475569; font-size: .8rem; }
+.notification-list { display: grid; gap: 12px; }
+.notification-card { align-items: flex-start; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.notification-unread { border-inline-start: 4px solid #1d4ed8; background: #f8fbff; }
+.notification-card-content { flex: 1; }
+.notification-title-row { justify-content: flex-start; margin-bottom: 8px; }
+.notification-unread-badge { padding: 3px 8px; border-radius: 999px; color: #1e3a8a; background: #dbeafe; font-size: .7rem; font-weight: 700; }
+.notification-card-actions { justify-content: flex-start; flex-wrap: wrap; }
+@media (max-width: 700px) {
+    .participant-heading, .department-card-header, .notification-card { align-items: stretch; flex-direction: column; }
+    .assignment-dates { justify-items: start; }
+    .department-officer-actions { grid-template-columns: 1fr; }
+}

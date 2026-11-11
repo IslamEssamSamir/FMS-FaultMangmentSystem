@@ -73,6 +73,8 @@ public class IncidentDetailsViewModel : IncidentListItemViewModel
     public IReadOnlyList<IncidentActionViewModel> Actions { get; set; } = [];
     public IReadOnlyList<IncidentReviewViewModel> ReviewHistory { get; set; } = [];
     public IReadOnlyList<IncidentStatusHistoryViewModel> StatusHistory { get; set; } = [];
+    public IReadOnlyList<IncidentDepartmentAssignmentViewModel> DepartmentAssignments { get; set; } = [];
+    public IReadOnlyList<IncidentActivityViewModel> ActivityTimeline { get; set; } = [];
 }
 
 public class IncidentDetailsPageViewModel
@@ -82,7 +84,62 @@ public class IncidentDetailsPageViewModel
     public ResolveIncidentViewModel Resolution { get; set; } = new();
     public IncidentReviewCreateViewModel Review { get; set; } = new();
     public TransferRequestCreateViewModel TransferRequest { get; set; } = new();
+    public IncidentDepartmentAssignmentCreateViewModel DepartmentAssignment { get; set; } = new();
+    public IncidentDepartmentRemovalViewModel DepartmentRemoval { get; set; } = new();
+    public IncidentDepartmentActionCreateViewModel DepartmentAction { get; set; } = new();
+    public IncidentDepartmentTaskStatusUpdateViewModel DepartmentTaskStatus { get; set; } = new();
     public IReadOnlyList<DepartmentViewModel> ReceivingDepartments { get; set; } = [];
+    public IReadOnlyList<DepartmentViewModel> AssignableDepartments { get; set; } = [];
     public IReadOnlyList<IncidentTransferHistoryViewModel> TransferHistory { get; set; } = [];
     public bool CanSubmitTransferRequest { get; set; }
+    public bool CanManageDepartmentAssignments { get; set; }
+    public bool CanManageOwnDepartmentTasks { get; set; }
+    public bool CanAddDepartmentAssignments { get; set; }
+    public bool CanRemoveDepartmentAssignments { get; set; }
+}
+
+public class IncidentDepartmentAssignmentViewModel
+{
+    public int Id { get; set; }
+    public int DepartmentId { get; set; }
+    public string DepartmentName { get; set; } = string.Empty;
+    public string DepartmentColorClass { get; set; } = string.Empty;
+    public string AssignedByUserName { get; set; } = string.Empty;
+    public DateTime AssignedAt { get; set; }
+    public IncidentDepartmentTaskStatus Status { get; set; }
+    public string RequiredTask { get; set; } = string.Empty;
+    public DateTime? CompletedAt { get; set; }
+    public DateTime? RemovedAt { get; set; }
+    public string? RemovedByUserName { get; set; }
+    public string? RemovalReason { get; set; }
+    public bool CanManageOwnTasks { get; set; }
+    public IReadOnlyList<IncidentDepartmentActionViewModel> Actions { get; set; } = [];
+    public IReadOnlyList<IncidentDepartmentAssignmentHistoryViewModel> History { get; set; } = [];
+}
+
+public class IncidentDepartmentActionViewModel
+{
+    public string UserFullName { get; set; } = string.Empty;
+    public string ActionDescription { get; set; } = string.Empty;
+    public DateTime ActionDate { get; set; }
+}
+
+public class IncidentDepartmentAssignmentHistoryViewModel
+{
+    public IncidentDepartmentAssignmentEventType EventType { get; set; }
+    public IncidentDepartmentTaskStatus? PreviousStatus { get; set; }
+    public IncidentDepartmentTaskStatus NewStatus { get; set; }
+    public string ChangedByUserName { get; set; } = string.Empty;
+    public DateTime ChangedAt { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class IncidentActivityViewModel
+{
+    public DateTime ActivityAt { get; set; }
+    public string? DepartmentName { get; set; }
+    public string? DepartmentColorClass { get; set; }
+    public string ActivityType { get; set; } = string.Empty;
+    public string ActorName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }

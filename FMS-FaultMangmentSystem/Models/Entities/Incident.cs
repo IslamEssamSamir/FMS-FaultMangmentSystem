@@ -28,4 +28,7 @@ public class Incident
     public Department CurrentDepartment { get; set; } = null!;
     public ApplicationUser? CurrentResponsibleUser { get; set; }
     public ApplicationUser? ResolvedByUser { get; set; }
+    public ICollection<IncidentDepartmentAssignment> DepartmentAssignments { get; set; } = new List<IncidentDepartmentAssignment>();
+    public ICollection<IncidentDepartmentAction> DepartmentActions { get; set; } = new List<IncidentDepartmentAction>();
+    public ICollection<UserNotification> Notifications { get; set; } = new List<UserNotification>();
 }

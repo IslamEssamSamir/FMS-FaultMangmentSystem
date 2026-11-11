@@ -106,6 +106,158 @@ public class IncidentIntakeTests
     }
 
     [Fact]
+    public async Task Transfer_UsesCurrentDepartmentForAccessAndPreservesReportingDepartment()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var creator = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
+        var created = await CreateIncidentService(dbContext, creator).SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Title = "Transferred incident",
+            Description = "Requires a different department.",
+            InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
+        });
+        Assert.True(created.Succeeded);
+
+        var transferRequest = await CreateTransferService(dbContext, new TestCurrentUserContext(
+            seeded.ReceivingOfficer.Id,
+            [Permissions.SubmitTransferRequests])).SubmitRequestAsync(
+                created.Data!.Id,
+                new TransferRequestCreateViewModel
+                {
+                    TargetDepartmentId = seeded.OtherReceivingDepartment.Id,
+                    Reason = "Specialist department required."
+                });
+        Assert.True(transferRequest.Succeeded);
+
+        var supervisorWithoutTransferPermission = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.ReviewTransferRequests, Permissions.ViewAllIncidents],
+            [RolePermissions.SystemSupervisor]);
+        var deniedTransfer = await CreateTransferService(dbContext, supervisorWithoutTransferPermission)
+            .ExecuteTransferAsync(transferRequest.Data!.Id,
+                new TransferExecutionViewModel { TargetDepartmentId = seeded.OtherReceivingDepartment.Id });
+        Assert.False(deniedTransfer.Succeeded);
+        Assert.Equal(seeded.ReceivingDepartment.Id, (await dbContext.Incidents.SingleAsync()).CurrentDepartmentId);
+
+        var supervisor = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.ReviewTransferRequests, Permissions.TransferIncidents, Permissions.ViewAllIncidents],
+            [RolePermissions.SystemSupervisor]);
+        var approvedTransfer = await CreateTransferService(dbContext, supervisor).ExecuteTransferAsync(
+            transferRequest.Data.Id,
+            new TransferExecutionViewModel { TargetDepartmentId = seeded.OtherReceivingDepartment.Id });
+        Assert.True(approvedTransfer.Succeeded);
+
+        var transferred = await dbContext.Incidents.SingleAsync();
+        Assert.Equal(seeded.ReportingDepartment.Id, transferred.ReportingDepartmentId);
+        Assert.Equal(seeded.ReceivingDepartment.Id, transferred.InitialReceivingDepartmentId);
+        Assert.Equal(seeded.OtherReceivingDepartment.Id, transferred.CurrentDepartmentId);
+        var transfer = await dbContext.IncidentTransfers.SingleAsync();
+        Assert.Equal(seeded.ReceivingDepartment.Id, transfer.FromDepartmentId);
+        Assert.Equal(seeded.OtherReceivingDepartment.Id, transfer.ToDepartmentId);
+        Assert.True((await CreateIncidentService(dbContext, supervisor).GetDetailsAsync(transferred.Id)).Succeeded);
+
+        var originalDepartmentOfficer = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.ViewDepartmentIncidents, Permissions.OpenIncidents]);
+        var originalDepartmentService = CreateIncidentService(dbContext, originalDepartmentOfficer);
+        Assert.False((await originalDepartmentService.GetDetailsAsync(transferred.Id)).Succeeded);
+        Assert.False((await originalDepartmentService.OpenAsync(transferred.Id)).Succeeded);
+
+        var unrelatedDepartment = new Department
+        {
+            Name = "Unrelated Receiving",
+            IsActive = true,
+            IsIncidentReceivingDepartment = true,
+            CanSubmitTransferRequests = true
+        };
+        var unrelatedOfficer = new ApplicationUser
+        {
+            Id = "unrelated-officer",
+            FullName = "Unrelated Officer",
+            IsActive = true,
+            Department = unrelatedDepartment
+        };
+        dbContext.AddRange(unrelatedDepartment, unrelatedOfficer);
+        await dbContext.SaveChangesAsync();
+        var unrelatedDepartmentService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            unrelatedOfficer.Id,
+            [Permissions.ViewDepartmentIncidents, Permissions.OpenIncidents]));
+        Assert.False((await unrelatedDepartmentService.GetDetailsAsync(transferred.Id)).Succeeded);
+        Assert.False((await unrelatedDepartmentService.OpenAsync(transferred.Id)).Succeeded);
+
+        var receivingViewOnlyService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.OtherOfficer.Id,
+            [Permissions.ViewDepartmentIncidents]));
+        Assert.True((await receivingViewOnlyService.GetDetailsAsync(transferred.Id)).Succeeded);
+        Assert.False((await receivingViewOnlyService.OpenAsync(transferred.Id)).Succeeded);
+
+        var receivingOpenOnlyService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.OtherOfficer.Id,
+            [Permissions.OpenIncidents]));
+        Assert.False((await receivingOpenOnlyService.GetDetailsAsync(transferred.Id)).Succeeded);
+
+        var receivingDepartmentService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.OtherOfficer.Id,
+            [Permissions.ViewDepartmentIncidents, Permissions.OpenIncidents]));
+        Assert.True((await receivingDepartmentService.GetDetailsAsync(transferred.Id)).Succeeded);
+        Assert.True((await receivingDepartmentService.OpenAsync(transferred.Id)).Succeeded);
+        Assert.Equal(IncidentStatus.Open, (await dbContext.Incidents.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Open_DeniesMissingOrInvalidCurrentDepartmentAssignment()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var creator = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
+        var created = await CreateIncidentService(dbContext, creator).SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Title = "Unassigned incident",
+            Description = "The responsible department assignment must be valid.",
+            InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
+        });
+        Assert.True(created.Succeeded);
+
+        var unassignedUser = new ApplicationUser
+        {
+            Id = "unassigned-officer",
+            FullName = "Unassigned Officer",
+            IsActive = true
+        };
+        dbContext.Users.Add(unassignedUser);
+        await dbContext.SaveChangesAsync();
+        Assert.False((await CreateIncidentService(dbContext, new TestCurrentUserContext(
+            unassignedUser.Id,
+            [Permissions.OpenIncidents])).OpenAsync(created.Data!.Id)).Succeeded);
+
+        var inactiveDepartment = new Department
+        {
+            Name = "Inactive Department",
+            IsActive = false,
+            IsIncidentReceivingDepartment = true,
+            CanSubmitTransferRequests = true
+        };
+        dbContext.Departments.Add(inactiveDepartment);
+        await dbContext.SaveChangesAsync();
+
+        var incident = await dbContext.Incidents.SingleAsync();
+        incident.CurrentDepartmentId = inactiveDepartment.Id;
+        await dbContext.SaveChangesAsync();
+        var receivingOfficerService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.ReceivingOfficer.Id,
+            [Permissions.ViewDepartmentIncidents, Permissions.OpenIncidents]));
+        Assert.False((await receivingOfficerService.GetDetailsAsync(incident.Id)).Succeeded);
+        Assert.False((await receivingOfficerService.OpenAsync(incident.Id)).Succeeded);
+        Assert.Equal(IncidentStatus.Incoming, incident.Status);
+    }
+
+    [Fact]
     public async Task TransferRequest_RequiresCurrentDepartmentAndDoesNotExecuteTransfer()
     {
         await using var dbContext = await CreateDbContextAsync();
@@ -126,7 +278,7 @@ public class IncidentIntakeTests
 
         var incorrectlyAssignedOfficer = CreateIncidentService(
             dbContext,
-            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.OpenIncidents]));
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.OpenIncidents]));
         Assert.False((await incorrectlyAssignedOfficer.OpenAsync(created.Data!.Id)).Succeeded);
 
         var receivingOfficer = new TestCurrentUserContext(

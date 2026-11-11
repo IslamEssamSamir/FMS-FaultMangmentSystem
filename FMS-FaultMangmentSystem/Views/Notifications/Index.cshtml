@@ -1,0 +1,50 @@
+@model IReadOnlyList<UserNotificationViewModel>
+@{
+    ViewData["Title"] = "الإشعارات";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">التحديثات</span><h1>الإشعارات</h1><p>الإشعارات الخاصة بحسابك والبلاغات المرتبطة بها.</p></div>
+    <a asp-controller="Incidents" asp-action="Index" class="btn btn-light">العودة إلى البلاغات</a>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <h2>لا توجد إشعارات</h2>
+        <p class="mb-0">ستظهر هنا التحديثات المتعلقة بالبلاغات والمهام المسندة إليك.</p>
+    </div>
+}
+else
+{
+    <section class="notification-list" aria-label="قائمة الإشعارات">
+        @foreach (var notification in Model)
+        {
+            <article class="notification-card @(notification.ReadAt is null ? "notification-unread" : string.Empty)">
+                <div class="notification-card-content">
+                    <div class="notification-title-row">
+                        <h2 class="h6 mb-0">@notification.Title</h2>
+                        @if (notification.ReadAt is null)
+                        {
+                            <span class="notification-unread-badge">غير مقروء</span>
+                        }
+                    </div>
+                    <p class="mb-2">@notification.Message</p>
+                    <time class="text-muted" datetime="@notification.CreatedAt.ToString("O")">@notification.CreatedAt.ToLocalTime().ToString("g")</time>
+                </div>
+                <div class="notification-card-actions">
+                    @if (notification.IncidentId is int incidentId)
+                    {
+                        <a asp-controller="Incidents" asp-action="Details" asp-route-id="@incidentId" class="btn btn-outline-primary btn-sm">عرض البلاغ</a>
+                    }
+                    @if (notification.ReadAt is null)
+                    {
+                        <form asp-action="MarkAsRead" asp-route-id="@notification.Id" method="post">
+                            <button type="submit" class="btn btn-light btn-sm">تحديد كمقروء</button>
+                        </form>
+                    }
+                </div>
+            </article>
+        }
+    </section>
+}

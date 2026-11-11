@@ -61,7 +61,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("UserId", "CreatedAt");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.Department", b =>
@@ -106,7 +106,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("IsActive", "IsIncidentReceivingDepartment");
 
-                    b.ToTable("Departments", (string)null);
+                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.Incident", b =>
@@ -199,7 +199,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("CurrentDepartmentId", "Status");
 
-                    b.ToTable("Incidents", (string)null);
+                    b.ToTable("Incidents");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentAction", b =>
@@ -233,7 +233,158 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("IncidentId", "ActionDate");
 
-                    b.ToTable("IncidentActions", (string)null);
+                    b.ToTable("IncidentActions");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ActionDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(7)")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("ActionDescription")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("AssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IncidentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("AssignmentId", "IncidentId");
+
+                    b.HasIndex("IncidentId", "ActionDate");
+
+                    b.ToTable("IncidentDepartmentActions");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AssignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(7)")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("AssignedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<int>("DepartmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IncidentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RemovalReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("RemovedByUserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("RequiredTask")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("RemovedByUserId");
+
+                    b.HasIndex("IncidentId", "DepartmentId")
+                        .IsUnique()
+                        .HasFilter("[RemovedAt] IS NULL");
+
+                    b.HasIndex("IncidentId", "Status", "RemovedAt");
+
+                    b.ToTable("IncidentDepartmentAssignments");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignmentHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(7)")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("ChangedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("AssignmentId", "ChangedAt");
+
+                    b.ToTable("IncidentDepartmentAssignmentHistories");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentReview", b =>
@@ -271,7 +422,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("IncidentId", "ReviewDate");
 
-                    b.ToTable("IncidentReviews", (string)null);
+                    b.ToTable("IncidentReviews");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentStatusHistory", b =>
@@ -313,7 +464,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("IncidentId", "ChangeDate");
 
-                    b.ToTable("IncidentStatusHistories", (string)null);
+                    b.ToTable("IncidentStatusHistories");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentTransfer", b =>
@@ -357,7 +508,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("IncidentId", "TransferDate");
 
-                    b.ToTable("IncidentTransfers", (string)null);
+                    b.ToTable("IncidentTransfers");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentTransferRequest", b =>
@@ -422,7 +573,7 @@ namespace IncidentManagementSystem.Migrations
 
                     b.HasIndex("RequestStatus", "RequestDate");
 
-                    b.ToTable("IncidentTransferRequests", (string)null);
+                    b.ToTable("IncidentTransferRequests");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.ShiftAssignment", b =>
@@ -462,7 +613,7 @@ namespace IncidentManagementSystem.Migrations
                     b.HasIndex("WeeklyShiftScheduleId", "DepartmentId", "ShiftDate", "ShiftDefinitionId")
                         .IsUnique();
 
-                    b.ToTable("ShiftAssignments", (string)null);
+                    b.ToTable("ShiftAssignments");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.ShiftDefinition", b =>
@@ -497,10 +648,52 @@ namespace IncidentManagementSystem.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("ShiftDefinitions", null, t =>
+                    b.ToTable("ShiftDefinitions", t =>
                         {
                             t.HasCheckConstraint("CK_ShiftDefinitions_TimeRange", "([IsOvernight] = 1) OR ([IsOvernight] = 0 AND [StartTime] < [EndTime])");
                         });
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.UserNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(7)")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<int?>("IncidentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidentId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("UserNotifications");
                 });
 
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.WeeklyShiftSchedule", b =>
@@ -530,7 +723,7 @@ namespace IncidentManagementSystem.Migrations
                     b.HasIndex("WeekStartDate")
                         .IsUnique();
 
-                    b.ToTable("WeeklyShiftSchedules", null, t =>
+                    b.ToTable("WeeklyShiftSchedules", t =>
                         {
                             t.HasCheckConstraint("CK_WeeklyShiftSchedules_WeekStartDate_Saturday", "DATEDIFF(day, CONVERT(date, '19000106', 112), [WeekStartDate]) % 7 = 0");
                         });
@@ -832,6 +1025,87 @@ namespace IncidentManagementSystem.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAction", b =>
+                {
+                    b.HasOne("IncidentManagementSystem.Models.Entities.Incident", "Incident")
+                        .WithMany("DepartmentActions")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignment", "Assignment")
+                        .WithMany("Actions")
+                        .HasForeignKey("AssignmentId", "IncidentId")
+                        .HasPrincipalKey("Id", "IncidentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignment", b =>
+                {
+                    b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "AssignedByUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Entities.Incident", "Incident")
+                        .WithMany("DepartmentAssignments")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "RemovedByUser")
+                        .WithMany()
+                        .HasForeignKey("RemovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AssignedByUser");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("RemovedByUser");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignmentHistory", b =>
+                {
+                    b.HasOne("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignment", "Assignment")
+                        .WithMany("History")
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("ChangedByUser");
+                });
+
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentReview", b =>
                 {
                     b.HasOne("IncidentManagementSystem.Models.Entities.Incident", "Incident")
@@ -982,6 +1256,24 @@ namespace IncidentManagementSystem.Migrations
                     b.Navigation("WeeklyShiftSchedule");
                 });
 
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.UserNotification", b =>
+                {
+                    b.HasOne("IncidentManagementSystem.Models.Entities.Incident", "Incident")
+                        .WithMany("Notifications")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("IncidentManagementSystem.Models.Entities.WeeklyShiftSchedule", b =>
                 {
                     b.HasOne("IncidentManagementSystem.Models.Identity.ApplicationUser", "CreatedByUser")
@@ -1052,6 +1344,22 @@ namespace IncidentManagementSystem.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.Incident", b =>
+                {
+                    b.Navigation("DepartmentActions");
+
+                    b.Navigation("DepartmentAssignments");
+
+                    b.Navigation("Notifications");
+                });
+
+            modelBuilder.Entity("IncidentManagementSystem.Models.Entities.IncidentDepartmentAssignment", b =>
+                {
+                    b.Navigation("Actions");
+
+                    b.Navigation("History");
                 });
 #pragma warning restore 612, 618
         }

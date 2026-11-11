@@ -19,7 +19,7 @@
 {
     <div class="alert alert-danger" role="alert">@errorMessage</div>
 }
-<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
 
 <section class="form-panel mb-4">
     <dl class="row">
@@ -125,6 +125,197 @@
         </form>
     }
 </section>
+
+<section class="form-panel participant-departments mb-4" aria-labelledby="participantDepartmentsHeading">
+    <div class="participant-heading">
+        <div>
+            <h2 id="participantDepartmentsHeading" class="h5 mb-1">الأقسام المشاركة في معالجة العطل</h2>
+            <p class="text-muted mb-0">تتابع كل جهة مهمتها وإجراءاتها بصورة مستقلة عن القسم المسؤول.</p>
+        </div>
+        @if (Model.CanAddDepartmentAssignments)
+        {
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                إضافة قسم مشارك
+            </button>
+        }
+    </div>
+
+    @if (incident.DepartmentAssignments.Count == 0)
+    {
+        <div class="empty-state participant-empty">
+            <h3 class="h6">لا توجد أقسام مشاركة بعد</h3>
+            <p class="mb-0">يظل القسم الحالي هو المسؤول الأساسي عن البلاغ.</p>
+        </div>
+    }
+    else
+    {
+        <div class="participant-list">
+            @foreach (var assignment in incident.DepartmentAssignments)
+            {
+                var (taskStatusLabel, taskStatusClass) = assignment.Status switch
+                {
+                    IncidentDepartmentTaskStatus.Pending => ("قيد الانتظار", "task-status-pending"),
+                    IncidentDepartmentTaskStatus.InProgress => ("قيد التنفيذ", "task-status-progress"),
+                    IncidentDepartmentTaskStatus.Completed => ("مكتملة", "task-status-completed"),
+                    _ => ("غير معروفة", "task-status-pending")
+                };
+
+                <article class="department-card @assignment.DepartmentColorClass">
+                    <header class="department-card-header">
+                        <div class="department-title-wrap">
+                            <span class="department-color-indicator" aria-hidden="true"></span>
+                            <div>
+                                <h3 class="h6 mb-1">@assignment.DepartmentName</h3>
+                                <span class="task-status-badge @taskStatusClass">@taskStatusLabel</span>
+                                @if (assignment.RemovedAt is not null)
+                                {
+                                    <span class="task-status-badge task-status-removed">تمت الإزالة</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="assignment-dates text-muted">
+                            <span>أُسندت بواسطة @assignment.AssignedByUserName</span>
+                            <time datetime="@assignment.AssignedAt.ToString("O")">@assignment.AssignedAt.ToLocalTime().ToString("g")</time>
+                            @if (assignment.CompletedAt is DateTime completedAt)
+                            {
+                                <span>اكتملت في <time datetime="@completedAt.ToString("O")">@completedAt.ToLocalTime().ToString("g")</time></span>
+                            }
+                        </div>
+                    </header>
+
+                    <div class="department-task">
+                        <strong>المهمة المطلوبة</strong>
+                        <p class="mb-0" style="white-space: pre-wrap">@assignment.RequiredTask</p>
+                    </div>
+
+                    @if (assignment.Actions.Count > 0)
+                    {
+                        <div class="department-action-list">
+                            <h4 class="h6">سجل إجراءات القسم</h4>
+                            @foreach (var action in assignment.Actions)
+                            {
+                                <article class="department-action">
+                                    <div class="department-action-meta">
+                                        <strong>@action.UserFullName</strong>
+                                        <time datetime="@action.ActionDate.ToString("O")">@action.ActionDate.ToLocalTime().ToString("g")</time>
+                                    </div>
+                                    <p class="mb-0" style="white-space: pre-wrap">@action.ActionDescription</p>
+                                </article>
+                            }
+                        </div>
+                    }
+
+                    @if (assignment.History.Count > 0)
+                    {
+                        <details class="department-history">
+                            <summary>سجل تغييرات المهمة (@assignment.History.Count)</summary>
+                            @foreach (var history in assignment.History)
+                            {
+                                <div class="department-history-entry">
+                                    <strong>@history.EventType — @history.ChangedByUserName</strong>
+                                    <time datetime="@history.ChangedAt.ToString("O")">@history.ChangedAt.ToLocalTime().ToString("g")</time>
+                                    @if (!string.IsNullOrWhiteSpace(history.Notes))
+                                    {
+                                        <p class="mb-0">@history.Notes</p>
+                                    }
+                                </div>
+                            }
+                        </details>
+                    }
+
+                    @if (assignment.CanManageOwnTasks)
+                    {
+                        <div class="department-officer-actions">
+                            <form asp-action="AddDepartmentAction" asp-route-id="@incident.Id" asp-route-assignmentId="@assignment.Id" method="post">
+                                <label for="DepartmentAction_@assignment.Id" class="form-label">تسجيل إجراء أو تحديث</label>
+                                <textarea id="DepartmentAction_@assignment.Id" name="DepartmentAction.ActionDescription" class="form-control" rows="2" maxlength="4000" required>@Model.DepartmentAction.ActionDescription</textarea>
+                                <button type="submit" class="btn btn-outline-primary btn-sm mt-2">حفظ الإجراء</button>
+                            </form>
+                            <form asp-action="UpdateDepartmentTaskStatus" asp-route-id="@incident.Id" asp-route-assignmentId="@assignment.Id" method="post">
+                                <label for="DepartmentTaskStatus_@assignment.Id" class="form-label">تحديث حالة المهمة</label>
+                                <select id="DepartmentTaskStatus_@assignment.Id" name="DepartmentTaskStatus.Status" class="form-select">
+                                    @if (assignment.Status == IncidentDepartmentTaskStatus.Pending)
+                                    {
+                                        <option value="InProgress">قيد التنفيذ</option>
+                                        <option value="Completed">مكتملة</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="Completed">مكتملة</option>
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-success btn-sm mt-2">@(assignment.Status == IncidentDepartmentTaskStatus.Pending ? "تحديث الحالة" : "إكمال المهمة")</button>
+                            </form>
+                        </div>
+                    }
+
+                    @if (Model.CanRemoveDepartmentAssignments && assignment.RemovedAt is null)
+                    {
+                        <form asp-action="RemoveDepartment" asp-route-id="@incident.Id" asp-route-assignmentId="@assignment.Id" method="post" class="department-remove-form">
+                            <label for="DepartmentRemoval_@assignment.Id" class="form-label">سبب إزالة القسم</label>
+                            <textarea id="DepartmentRemoval_@assignment.Id" name="DepartmentRemoval.Reason" class="form-control" rows="2" maxlength="2000" required>@Model.DepartmentRemoval.Reason</textarea>
+                            <button type="submit" class="btn btn-outline-danger btn-sm mt-2">إزالة القسم المشارك</button>
+                        </form>
+                    }
+
+                    @if (assignment.RemovedAt is not null && !string.IsNullOrWhiteSpace(assignment.RemovalReason))
+                    {
+                        <p class="department-removal-note mb-0">سبب الإزالة: @assignment.RemovalReason</p>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.CanAddDepartmentAssignments)
+{
+    <div class="modal fade" id="addDepartmentModal" tabindex="-1" aria-labelledby="addDepartmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form asp-action="AssignDepartment" asp-route-id="@incident.Id" method="post">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="addDepartmentModalLabel">إضافة قسم مشارك</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                        @if (Model.AssignableDepartments.Count == 0)
+                        {
+                            <div class="alert alert-info mb-0">لا توجد أقسام نشطة متاحة للإسناد.</div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label asp-for="DepartmentAssignment.DepartmentId" class="form-label">القسم المشارك</label>
+                                <select asp-for="DepartmentAssignment.DepartmentId" class="form-select">
+                                    <option value="">اختر القسم</option>
+                                    @foreach (var department in Model.AssignableDepartments)
+                                    {
+                                        <option value="@department.Id">@department.Name</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="DepartmentAssignment.DepartmentId" class="text-danger"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label asp-for="DepartmentAssignment.RequiredTask" class="form-label">المهمة والتعليمات المطلوبة</label>
+                                <textarea asp-for="DepartmentAssignment.RequiredTask" class="form-control" rows="4" maxlength="4000"></textarea>
+                                <span asp-validation-for="DepartmentAssignment.RequiredTask" class="text-danger"></span>
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                        @if (Model.AssignableDepartments.Count > 0)
+                        {
+                            <button type="submit" class="btn btn-primary">إسناد القسم</button>
+                        }
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
 
 <section class="form-panel mb-4">
     <h2 class="h5">سجل التحويلات</h2>

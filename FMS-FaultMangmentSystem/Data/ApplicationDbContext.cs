@@ -10,6 +10,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<IncidentAction> IncidentActions => Set<IncidentAction>();
+    public DbSet<IncidentDepartmentAssignment> IncidentDepartmentAssignments => Set<IncidentDepartmentAssignment>();
+    public DbSet<IncidentDepartmentAssignmentHistory> IncidentDepartmentAssignmentHistories => Set<IncidentDepartmentAssignmentHistory>();
+    public DbSet<IncidentDepartmentAction> IncidentDepartmentActions => Set<IncidentDepartmentAction>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<IncidentTransferRequest> IncidentTransferRequests => Set<IncidentTransferRequest>();
     public DbSet<IncidentTransfer> IncidentTransfers => Set<IncidentTransfer>();
     public DbSet<IncidentStatusHistory> IncidentStatusHistories => Set<IncidentStatusHistory>();

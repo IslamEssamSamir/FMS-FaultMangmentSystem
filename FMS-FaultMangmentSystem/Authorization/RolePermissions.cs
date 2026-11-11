@@ -31,7 +31,8 @@ public static class RolePermissions
                     Permissions.ReviewTransferRequests,
                     Permissions.ReviewResolvedIncidents,
                     Permissions.RejectIncidentResolution,
-                    Permissions.CloseIncidents
+                    Permissions.CloseIncidents,
+                    Permissions.ManageIncidentDepartmentAssignments
                 }),
                 [User] = Array.AsReadOnly(new[]
                 {
@@ -40,6 +41,8 @@ public static class RolePermissions
                     Permissions.AddIncidentActions,
                     Permissions.ResolveIncidents,
                     Permissions.SubmitTransferRequests,
+                    Permissions.AddDepartmentIncidentActions,
+                    Permissions.UpdateDepartmentIncidentTasks,
                     Permissions.SubmitComplaints
                 }),
                 [CivilianEmployee] = Array.AsReadOnly(new[]

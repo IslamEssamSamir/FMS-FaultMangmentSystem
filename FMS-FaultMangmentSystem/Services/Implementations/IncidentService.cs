@@ -98,7 +98,8 @@ public sealed class IncidentService(
         incident.InitialReceivingDepartment = receivingDepartment;
         incident.CurrentDepartment = receivingDepartment;
         incident.ReportedByUser = actor;
-        return ServiceResult<IncidentDetailsViewModel>.Success(await ToDetailsViewModelAsync(incident, cancellationToken));
+        return ServiceResult<IncidentDetailsViewModel>.Success(
+            await ToDetailsViewModelAsync(incident, incident.CurrentDepartmentId, cancellationToken));
     }
 
     public async Task<ServiceResult<IReadOnlyList<DepartmentViewModel>>> GetSearchDepartmentsAsync(
@@ -282,7 +283,8 @@ public sealed class IncidentService(
             return ServiceResult<IncidentDetailsViewModel>.Failure("Permission denied.");
         }
 
-        var canViewAll = currentUser.HasPermission(Permissions.ViewAllIncidents);
+        var canViewAll = currentUser.IsInRole(RolePermissions.SystemSupervisor) &&
+                         currentUser.HasPermission(Permissions.ViewAllIncidents);
         if (!canViewAll && !currentUser.HasPermission(Permissions.ViewDepartmentIncidents))
         {
             return ServiceResult<IncidentDetailsViewModel>.Failure("Permission denied.");
@@ -304,7 +306,9 @@ public sealed class IncidentService(
             .Where(incident => incident.Id == incidentId);
         if (!canViewAll)
         {
-            query = query.Where(incident => incident.CurrentDepartmentId == actor.DepartmentId);
+            query = query.Where(incident => incident.CurrentDepartmentId == actor.DepartmentId ||
+                                            incident.DepartmentAssignments.Any(assignment =>
+                                                assignment.DepartmentId == actor.DepartmentId && assignment.RemovedAt == null));
         }
 
         var incident = await query.SingleOrDefaultAsync(cancellationToken);
@@ -314,7 +318,7 @@ public sealed class IncidentService(
         }
 
         return ServiceResult<IncidentDetailsViewModel>.Success(
-            await ToDetailsViewModelAsync(incident, cancellationToken));
+            await ToDetailsViewModelAsync(incident, canViewAll ? null : actor.DepartmentId, cancellationToken));
     }
 
     public async Task<ServiceResult<bool>> OpenAsync(
@@ -348,16 +352,6 @@ public sealed class IncidentService(
         if (incident.CurrentDepartmentId != actor.DepartmentId)
         {
             return ServiceResult<bool>.Failure("The incident belongs to another department.");
-        }
-
-        var receivingDepartment = await dbContext.Departments.SingleOrDefaultAsync(
-            department => department.Id == actor.DepartmentId &&
-                          department.IsActive &&
-                          department.IsIncidentReceivingDepartment,
-            cancellationToken);
-        if (receivingDepartment is null || incident.InitialReceivingDepartmentId != actor.DepartmentId)
-        {
-            return ServiceResult<bool>.Failure("This department is not authorized to open the incident.");
         }
 
         var now = DateTime.UtcNow;
@@ -455,15 +449,26 @@ public sealed class IncidentService(
             return ServiceResult<bool>.Failure("An active department is required.");
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable,
+            cancellationToken);
         var incident = await dbContext.Incidents.SingleOrDefaultAsync(item => item.Id == incidentId, cancellationToken);
         var accessFailure = CheckOpenDepartmentIncident(incident, actor, requireResponsibleOfficer: true);
         if (accessFailure is not null)
         {
             return ServiceResult<bool>.Failure(accessFailure);
         }
+        var hasIncompleteDepartmentTasks = await dbContext.IncidentDepartmentAssignments.AnyAsync(
+            assignment => assignment.IncidentId == incidentId &&
+                          assignment.RemovedAt == null &&
+                          assignment.Status != IncidentDepartmentTaskStatus.Completed,
+            cancellationToken);
+        if (hasIncompleteDepartmentTasks)
+        {
+            return ServiceResult<bool>.Failure("All participating department tasks must be completed before resolving the incident.");
+        }
 
         var now = DateTime.UtcNow;
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         incident!.Status = IncidentStatus.Resolved;
         incident.FinalSolutionDescription = model.FinalSolutionDescription.Trim();
         incident.ResolutionSteps = model.ResolutionSteps.Trim();
@@ -517,7 +522,8 @@ public sealed class IncidentService(
             return (null, null, "Permission denied.");
         }
 
-        var canViewAll = currentUser.HasPermission(Permissions.ViewAllIncidents);
+        var canViewAll = currentUser.IsInRole(RolePermissions.SystemSupervisor) &&
+                         currentUser.HasPermission(Permissions.ViewAllIncidents);
         if (!canViewAll && !currentUser.HasPermission(Permissions.ViewDepartmentIncidents))
         {
             return (null, null, "Permission denied.");
@@ -535,7 +541,9 @@ public sealed class IncidentService(
             .AsQueryable();
         if (!canViewAll)
         {
-            query = query.Where(incident => incident.CurrentDepartmentId == actor.DepartmentId);
+            query = query.Where(incident => incident.CurrentDepartmentId == actor.DepartmentId ||
+                                            incident.DepartmentAssignments.Any(assignment =>
+                                                assignment.DepartmentId == actor.DepartmentId && assignment.RemovedAt == null));
         }
 
         return (query, actor, null);
@@ -568,6 +576,7 @@ public sealed class IncidentService(
 
     private async Task<IncidentDetailsViewModel> ToDetailsViewModelAsync(
         Incident incident,
+        int? visibleDepartmentId,
         CancellationToken cancellationToken)
     {
         var viewModel = mapper.Map<IncidentDetailsViewModel>(incident);
@@ -576,6 +585,66 @@ public sealed class IncidentService(
         viewModel.InitialReceivingDepartmentName = incident.InitialReceivingDepartment.Name;
         viewModel.CurrentResponsibleUserName = incident.CurrentResponsibleUser?.FullName;
         viewModel.ResolvedByUserName = incident.ResolvedByUser?.FullName;
+
+        var assignmentQuery = dbContext.IncidentDepartmentAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.IncidentId == incident.Id);
+        if (visibleDepartmentId.HasValue)
+        {
+            assignmentQuery = assignmentQuery.Where(assignment => assignment.DepartmentId == visibleDepartmentId.Value);
+        }
+
+        var assignments = await assignmentQuery
+            .Include(assignment => assignment.Department)
+            .Include(assignment => assignment.AssignedByUser)
+            .Include(assignment => assignment.RemovedByUser)
+            .Include(assignment => assignment.Actions)
+                .ThenInclude(action => action.User)
+            .Include(assignment => assignment.History)
+                .ThenInclude(history => history.ChangedByUser)
+            .AsSplitQuery()
+            .OrderBy(assignment => assignment.AssignedAt)
+            .ThenBy(assignment => assignment.Id)
+            .ToListAsync(cancellationToken);
+
+        viewModel.DepartmentAssignments = assignments.Select(assignment => new IncidentDepartmentAssignmentViewModel
+        {
+            Id = assignment.Id,
+            DepartmentId = assignment.DepartmentId,
+            DepartmentName = assignment.Department.Name,
+            DepartmentColorClass = GetDepartmentColorClass(assignment.DepartmentId),
+            AssignedByUserName = assignment.AssignedByUser.FullName,
+            AssignedAt = assignment.AssignedAt,
+            Status = assignment.Status,
+            RequiredTask = assignment.RequiredTask,
+            CompletedAt = assignment.CompletedAt,
+            RemovedAt = assignment.RemovedAt,
+            RemovedByUserName = assignment.RemovedByUser?.FullName,
+            RemovalReason = assignment.RemovalReason,
+            Actions = assignment.Actions
+                .OrderBy(action => action.ActionDate)
+                .ThenBy(action => action.Id)
+                .Select(action => new IncidentDepartmentActionViewModel
+                {
+                    UserFullName = action.User.FullName,
+                    ActionDescription = action.ActionDescription,
+                    ActionDate = action.ActionDate
+                })
+                .ToList(),
+            History = assignment.History
+                .OrderBy(history => history.ChangedAt)
+                .ThenBy(history => history.Id)
+                .Select(history => new IncidentDepartmentAssignmentHistoryViewModel
+                {
+                    EventType = history.EventType,
+                    PreviousStatus = history.PreviousStatus,
+                    NewStatus = history.NewStatus,
+                    ChangedByUserName = history.ChangedByUser.FullName,
+                    ChangedAt = history.ChangedAt,
+                    Notes = history.Notes
+                })
+                .ToList()
+        }).ToList();
 
         var actions = await dbContext.IncidentActions
             .AsNoTracking()
@@ -622,4 +691,7 @@ public sealed class IncidentService(
 
         return viewModel;
     }
+
+    private static string GetDepartmentColorClass(int departmentId) =>
+        $"department-color-{Math.Abs(departmentId % 8)}";
 }

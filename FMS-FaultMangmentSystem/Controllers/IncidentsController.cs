@@ -15,6 +15,7 @@ namespace IncidentManagementSystem.Controllers;
 [Authorize]
 public sealed class IncidentsController(
     IIncidentService incidentService,
+    IIncidentDepartmentService incidentDepartmentService,
     IIncidentTransferService transferService,
     IIncidentReviewService reviewService,
     ApplicationDbContext dbContext) : Controller
@@ -165,6 +166,95 @@ public sealed class IncidentsController(
             TempData["SuccessMessage"] = "Incident opened.";
         }
 
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.ManageIncidentDepartmentAssignments)]
+    public async Task<IActionResult> AssignDepartment(
+        int id,
+        [Bind(Prefix = "DepartmentAssignment")] IncidentDepartmentAssignmentCreateViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentAssignment", model, null, cancellationToken);
+        }
+
+        var result = await incidentDepartmentService.AssignDepartmentAsync(id, model, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentAssignment", model, result, cancellationToken);
+        }
+
+        TempData["SuccessMessage"] = "تمت إضافة القسم المشارك بنجاح.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.ManageIncidentDepartmentAssignments)]
+    public async Task<IActionResult> RemoveDepartment(
+        int id,
+        int assignmentId,
+        [Bind(Prefix = "DepartmentRemoval")] IncidentDepartmentRemovalViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentRemoval", model, null, cancellationToken);
+        }
+
+        var result = await incidentDepartmentService.RemoveDepartmentAsync(id, assignmentId, model, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentRemoval", model, result, cancellationToken);
+        }
+
+        TempData["SuccessMessage"] = "تمت إزالة القسم المشارك مع الاحتفاظ بسجل العمل.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.AddDepartmentIncidentActions)]
+    public async Task<IActionResult> AddDepartmentAction(
+        int id,
+        int assignmentId,
+        [Bind(Prefix = "DepartmentAction")] IncidentDepartmentActionCreateViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentAction", model, null, cancellationToken);
+        }
+
+        var result = await incidentDepartmentService.AddActionAsync(id, assignmentId, model, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentAction", model, result, cancellationToken);
+        }
+
+        TempData["SuccessMessage"] = "تم تسجيل إجراء القسم المشارك.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.UpdateDepartmentIncidentTasks)]
+    public async Task<IActionResult> UpdateDepartmentTaskStatus(
+        int id,
+        int assignmentId,
+        [Bind(Prefix = "DepartmentTaskStatus")] IncidentDepartmentTaskStatusUpdateViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentTaskStatus", model, null, cancellationToken);
+        }
+
+        var result = await incidentDepartmentService.UpdateTaskStatusAsync(id, assignmentId, model, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return await ReturnDetailsWithDepartmentErrorsAsync(id, "DepartmentTaskStatus", model, result, cancellationToken);
+        }
+
+        TempData["SuccessMessage"] = model.Status == Models.Enums.IncidentDepartmentTaskStatus.Completed
+            ? "تم إكمال مهمة القسم المشارك."
+            : "تم تحديث حالة مهمة القسم المشارك.";
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -320,6 +410,51 @@ public sealed class IncidentsController(
         return View("Details", await BuildDetailsPageAsync(incidentResult.Data!, cancellationToken, request));
     }
 
+    private async Task<IActionResult> ReturnDetailsWithDepartmentErrorsAsync(
+        int id,
+        string prefix,
+        object formModel,
+        ServiceResult<bool>? result,
+        CancellationToken cancellationToken)
+    {
+        if (result?.ErrorMessage == "Incident not found.") return NotFound();
+        if (result?.ErrorMessage is "Permission denied." or "Active department assignment not found.") return Forbid();
+
+        if (result is not null)
+        {
+            AddWorkflowErrors(result, prefix);
+        }
+        else
+        {
+            AddWorkflowErrors(ModelState, prefix);
+        }
+
+        var incidentResult = await incidentService.GetDetailsAsync(id, cancellationToken);
+        if (!incidentResult.Succeeded)
+        {
+            return incidentResult.ErrorMessage == "Incident not found." ? NotFound() : Forbid();
+        }
+
+        var page = await BuildDetailsPageAsync(incidentResult.Data!, cancellationToken);
+        switch (formModel)
+        {
+            case IncidentDepartmentAssignmentCreateViewModel assignment:
+                page.DepartmentAssignment = assignment;
+                break;
+            case IncidentDepartmentRemovalViewModel removal:
+                page.DepartmentRemoval = removal;
+                break;
+            case IncidentDepartmentActionCreateViewModel action:
+                page.DepartmentAction = action;
+                break;
+            case IncidentDepartmentTaskStatusUpdateViewModel status:
+                page.DepartmentTaskStatus = status;
+                break;
+        }
+
+        return View("Details", page);
+    }
+
     private async Task<IActionResult> ReturnDetailsWithWorkflowErrorsAsync(
         int id,
         IncidentActionCreateViewModel? action,
@@ -366,6 +501,7 @@ public sealed class IncidentsController(
     {
         var transferHistory = await transferService.GetHistoryAsync(incident.Id, cancellationToken);
         List<DepartmentViewModel> receivingDepartments = [];
+        List<DepartmentViewModel> assignableDepartments = [];
 
         var currentDepartmentAllowsTransferSubmission = false;
         if (HasPermission(Permissions.SubmitTransferRequests))
@@ -386,13 +522,54 @@ public sealed class IncidentsController(
             }
         }
 
+        var canManageAssignments = User.IsInRole(RolePermissions.SystemSupervisor) &&
+                                   HasPermission(Permissions.ManageIncidentDepartmentAssignments);
+        var canManageOwnDepartmentTasks = User.IsInRole(RolePermissions.User) &&
+                                          HasPermission(Permissions.AddDepartmentIncidentActions) &&
+                                          HasPermission(Permissions.UpdateDepartmentIncidentTasks);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var currentUserDepartmentId = userId is null
+            ? null
+            : await dbContext.Users.AsNoTracking()
+                .Where(user => user.Id == userId && user.IsActive && user.Department != null && user.Department.IsActive)
+                .Select(user => user.DepartmentId)
+                .SingleOrDefaultAsync(cancellationToken);
+
+        if (canManageAssignments && incident.Status != IncidentStatus.Closed)
+        {
+            assignableDepartments = await dbContext.Departments.AsNoTracking()
+                .Where(department => department.IsActive &&
+                                     department.Id != incident.CurrentDepartmentId &&
+                                     !dbContext.IncidentDepartmentAssignments.Any(assignment =>
+                                         assignment.IncidentId == incident.Id &&
+                                         assignment.DepartmentId == department.Id &&
+                                         assignment.RemovedAt == null))
+                .OrderBy(department => department.Name)
+                .Select(department => new DepartmentViewModel { Id = department.Id, Name = department.Name })
+                .ToListAsync(cancellationToken);
+        }
+
+        foreach (var assignment in incident.DepartmentAssignments)
+        {
+            assignment.CanManageOwnTasks = canManageOwnDepartmentTasks &&
+                                           incident.Status == IncidentStatus.Open &&
+                                           assignment.DepartmentId == currentUserDepartmentId &&
+                                           assignment.RemovedAt is null &&
+                                           assignment.Status != Models.Enums.IncidentDepartmentTaskStatus.Completed;
+        }
+
         return new IncidentDetailsPageViewModel
         {
             Incident = incident,
             TransferRequest = request ?? new TransferRequestCreateViewModel(),
             ReceivingDepartments = receivingDepartments,
             TransferHistory = transferHistory.Data ?? [],
-            CanSubmitTransferRequest = currentDepartmentAllowsTransferSubmission
+            CanSubmitTransferRequest = currentDepartmentAllowsTransferSubmission,
+            AssignableDepartments = assignableDepartments,
+            CanManageDepartmentAssignments = canManageAssignments,
+            CanAddDepartmentAssignments = canManageAssignments && incident.Status != IncidentStatus.Closed,
+            CanRemoveDepartmentAssignments = canManageAssignments && incident.Status != IncidentStatus.Closed,
+            CanManageOwnDepartmentTasks = canManageOwnDepartmentTasks
         };
     }
 

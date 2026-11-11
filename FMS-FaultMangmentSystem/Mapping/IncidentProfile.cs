@@ -38,7 +38,8 @@ public sealed class IncidentProfile : Profile
             .ForMember(destination => destination.InitialReceivingDepartmentName, options => options.Ignore())
             .ForMember(destination => destination.CurrentResponsibleUserName, options => options.Ignore())
             .ForMember(destination => destination.ResolvedByUserName, options => options.Ignore())
-            .ForMember(destination => destination.Actions, options => options.Ignore());
+            .ForMember(destination => destination.Actions, options => options.Ignore())
+            .ForMember(destination => destination.DepartmentAssignments, options => options.Ignore());
 
         CreateMap<IncidentActionCreateViewModel, IncidentAction>()
             .ForMember(destination => destination.Id, options => options.Ignore())

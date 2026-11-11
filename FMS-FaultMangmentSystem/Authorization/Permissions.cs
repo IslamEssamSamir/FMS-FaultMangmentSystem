@@ -25,6 +25,9 @@ public static class Permissions
     public const string AddIncidentActions = nameof(AddIncidentActions);
     public const string ResolveIncidents = nameof(ResolveIncidents);
     public const string SubmitTransferRequests = nameof(SubmitTransferRequests);
+    public const string ManageIncidentDepartmentAssignments = nameof(ManageIncidentDepartmentAssignments);
+    public const string AddDepartmentIncidentActions = nameof(AddDepartmentIncidentActions);
+    public const string UpdateDepartmentIncidentTasks = nameof(UpdateDepartmentIncidentTasks);
 
     public const string SubmitComplaints = nameof(SubmitComplaints);
 
@@ -49,6 +52,9 @@ public static class Permissions
         AddIncidentActions,
         ResolveIncidents,
         SubmitTransferRequests,
+        ManageIncidentDepartmentAssignments,
+        AddDepartmentIncidentActions,
+        UpdateDepartmentIncidentTasks,
         SubmitComplaints
     ]);
 }
