@@ -1,0 +1,76 @@
+@model IncidentManagementSystem.ViewModels.IncidentEditViewModel
+@using IncidentManagementSystem.Models.Enums
+@{
+    ViewData["Title"] = "تعديل بيانات البلاغ";
+}
+
+<div class="page-heading">
+    <div><span class="welcome-kicker">إدارة البلاغات</span><h1>تعديل بيانات البلاغ</h1><p>يمكن تعديل الأولوية وبيانات الإخطار فقط.</p></div>
+    <a asp-action="Index" class="btn btn-light">العودة إلى البلاغات</a>
+</div>
+<div class="form-panel">
+    <form asp-action="Edit" method="post" enctype="multipart/form-data">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <fieldset class="mb-3">
+            <legend class="form-label">أولوية البلاغ</legend>
+            @foreach (var priority in Enum.GetValues<IncidentPriority>())
+            {
+                var id = $"priority_{priority}";
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" asp-for="Priority" id="@id" value="@priority" />
+                    <label class="form-check-label" for="@id">@IncidentPriorityDisplay.GetLabel(priority)</label>
+                </div>
+            }
+            <span asp-validation-for="Priority" class="text-danger"></span>
+        </fieldset>
+        <div class="mb-3"><label asp-for="ReportingEntity" class="form-label">جهة الإخطار</label><input asp-for="ReportingEntity" class="form-control" maxlength="200" /><span asp-validation-for="ReportingEntity" class="text-danger"></span></div>
+        <div class="mb-3"><label asp-for="ReporterName" class="form-label">اسم القائم بالإخطار</label><input asp-for="ReporterName" class="form-control" maxlength="200" /><span asp-validation-for="ReporterName" class="text-danger"></span></div>
+        <div class="mb-3"><label asp-for="ReporterPhone" class="form-label">رقم التواصل للقائم بالإخطار</label><input asp-for="ReporterPhone" type="tel" class="form-control" maxlength="50" dir="ltr" /><span asp-validation-for="ReporterPhone" class="text-danger"></span></div>
+        <div class="mb-3">
+            <label asp-for="NotificationMethod" class="form-label">وسيلة الإخطار</label>
+            <select asp-for="NotificationMethod" class="form-select" id="notificationMethod">
+                <option value="">اختر وسيلة الإخطار</option>
+                @foreach (var method in Enum.GetValues<NotificationMethod>())
+                {
+                    <option value="@((int)method)">@NotificationMethodDisplay.GetLabel(method)</option>
+                }
+            </select>
+            <span asp-validation-for="NotificationMethod" class="text-danger"></span>
+        </div>
+        <div class="mb-3" id="otherMethodGroup">
+            <label asp-for="OtherNotificationMethodDescription" class="form-label">توضيح وسيلة الإخطار</label>
+            <input asp-for="OtherNotificationMethodDescription" class="form-control" maxlength="500" />
+            <span asp-validation-for="OtherNotificationMethodDescription" class="text-danger"></span>
+        </div>
+        <div class="mb-3" id="officialLetterGroup">
+            <label asp-for="OfficialLetterAttachment" class="form-label">مرفق الجواب الرسمي</label>
+            <input asp-for="OfficialLetterAttachment" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" />
+            <span asp-validation-for="OfficialLetterAttachment" class="text-danger"></span>
+            <div class="form-text">الحد الأقصى 5 ميجابايت. الملفات المسموحة: JPG وPNG وWEBP وPDF.</div>
+            @if (Model.HasOfficialLetterAttachment)
+            {
+                <a asp-action="OfficialLetterAttachment" asp-route-id="@(ViewContext.RouteData.Values["id"])" class="btn btn-outline-secondary btn-sm mt-2">عرض المرفق الحالي</a>
+                <div class="form-text">يظل المرفق الحالي محفوظًا ما لم يتم رفع بديل عند اختيار جواب رسمي.</div>
+            }
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">حفظ التعديلات</button><a asp-action="Index" class="btn btn-light">إلغاء</a></div>
+    </form>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const method = document.getElementById("notificationMethod");
+            const other = document.getElementById("otherMethodGroup");
+            const letter = document.getElementById("officialLetterGroup");
+            const update = () => {
+                other.hidden = method.value !== "3";
+                letter.hidden = method.value !== "1";
+                other.querySelector("input").required = method.value === "3";
+                if (method.value !== "3") other.querySelector("input").value = "";
+            };
+            method.addEventListener("change", update);
+            update();
+        })();
+    </script>
+}

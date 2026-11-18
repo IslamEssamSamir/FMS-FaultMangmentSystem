@@ -57,6 +57,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
+builder.Services.AddSingleton<IIncidentAttachmentStorage, LocalIncidentAttachmentStorage>();
 builder.Services.AddScoped<IIncidentDepartmentService, IncidentDepartmentService>();
 builder.Services.AddScoped<IIncidentNotificationService, IncidentNotificationService>();
 builder.Services.AddScoped<IIncidentTransferService, IncidentTransferService>();

@@ -1,5 +1,6 @@
 using AutoMapper;
 using IncidentManagementSystem.Authorization;
+using IncidentManagementSystem.Controllers;
 using IncidentManagementSystem.Data;
 using IncidentManagementSystem.Mapping;
 using IncidentManagementSystem.Models.Entities;
@@ -11,6 +12,8 @@ using IncidentManagementSystem.Services.Interfaces;
 using IncidentManagementSystem.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -18,6 +21,498 @@ namespace IncidentManagementSystem.Tests;
 
 public class IncidentIntakeTests
 {
+    [Theory]
+    [InlineData(NotificationMethod.OfficialLetter)]
+    [InlineData(NotificationMethod.Phone)]
+    [InlineData(NotificationMethod.Other)]
+    public async Task SubmitComplaint_AcceptsEachDefinedNotificationMethod(NotificationMethod method)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var model = NewCreateModel(method);
+        if (method == NotificationMethod.OfficialLetter)
+            model.OfficialLetterAttachment = CreatePdf();
+        if (method == NotificationMethod.Other)
+            model.OtherNotificationMethodDescription = "In person";
+
+        var result = await CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints])).SubmitComplaintAsync(model);
+
+        Assert.True(result.Succeeded, result.ErrorMessage);
+        var incident = await dbContext.Incidents.SingleAsync();
+        Assert.Equal(method, incident.NotificationMethod);
+        Assert.Equal(method == NotificationMethod.Other ? "In person" : null, incident.OtherNotificationMethodDescription);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData((NotificationMethod)0)]
+    [InlineData((NotificationMethod)99)]
+    public async Task SubmitComplaint_RejectsMissingOrUndefinedNotificationMethod(NotificationMethod? method)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var model = NewCreateModel();
+        model.NotificationMethod = method;
+
+        var result = await CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints])).SubmitComplaintAsync(model);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("letter.jpg", "image/jpeg", new byte[] { 255, 216, 255, 0 })]
+    [InlineData("letter.jpeg", "image/jpeg", new byte[] { 255, 216, 255, 0 })]
+    [InlineData("letter.png", "image/png", new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })]
+    [InlineData("letter.webp", "image/webp", new byte[] { 82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80 })]
+    [InlineData("letter.pdf", "application/pdf", new byte[] { 37, 80, 68, 70, 45, 49 })]
+    public async Task SubmitComplaint_AcceptsAllowedAttachmentSignatures(
+        string fileName, string contentType, byte[] signature)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var model = NewCreateModel(NotificationMethod.OfficialLetter, CreateFile(fileName, contentType, signature));
+
+        var result = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints])).SubmitComplaintAsync(model);
+
+        Assert.True(result.Succeeded, result.ErrorMessage);
+        Assert.Single(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SubmitComplaint_RequiresOfficialLetterAndOtherDetailsButPhoneNeedsNoAttachment()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var service = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints]));
+
+        Assert.False((await service.SubmitComplaintAsync(NewCreateModel(NotificationMethod.OfficialLetter))).Succeeded);
+        Assert.False((await service.SubmitComplaintAsync(NewCreateModel(NotificationMethod.Other))).Succeeded);
+        Assert.True((await service.SubmitComplaintAsync(NewCreateModel(NotificationMethod.Phone))).Succeeded);
+        Assert.Single(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("letter.txt", "text/plain", "%PDF-1.7")]
+    [InlineData("letter.pdf", "text/plain", "%PDF-1.7")]
+    [InlineData("letter.pdf", "application/pdf", "not a pdf")]
+    public async Task SubmitComplaint_RejectsInvalidAttachmentExtensionMimeOrSignature(
+        string fileName, string contentType, string contents)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var model = NewCreateModel(NotificationMethod.OfficialLetter);
+        model.OfficialLetterAttachment = CreateFile(fileName, contentType, System.Text.Encoding.ASCII.GetBytes(contents));
+
+        var result = await CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints])).SubmitComplaintAsync(model);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SubmitComplaint_RejectsAttachmentsLargerThanFiveMebibytes()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var model = NewCreateModel(NotificationMethod.OfficialLetter);
+        var contents = new byte[5 * 1024 * 1024 + 1];
+        "%PDF-1.7"u8.CopyTo(contents);
+        model.OfficialLetterAttachment = CreateFile("large.pdf", "application/pdf", contents);
+
+        var result = await CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints])).SubmitComplaintAsync(model);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_ReplacesAttachmentAfterPersistenceAndPreservesWhenNoReplacementIsUploaded()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints]);
+        var createContext = new TestCurrentUserContext(seeded.Civilian.Id,
+            [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
+        var createModel = NewCreateModel(NotificationMethod.OfficialLetter, CreatePdf());
+        createModel.InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id;
+        var created = await CreateIncidentService(dbContext, createContext, storage).SubmitComplaintAsync(createModel);
+        Assert.True(created.Succeeded);
+        var incidentBeforeEdit = await dbContext.Incidents.SingleAsync();
+        var oldKey = incidentBeforeEdit.OfficialLetterAttachmentKey!;
+        var statusHistoryBefore = await dbContext.IncidentStatusHistories.CountAsync();
+        var actionsBefore = await dbContext.IncidentDepartmentActions.CountAsync();
+        var assignmentsBefore = await dbContext.IncidentDepartmentAssignments.CountAsync();
+        var shiftsBefore = await dbContext.ShiftAssignments.CountAsync();
+        var statusBefore = incidentBeforeEdit.Status;
+        var departmentBefore = incidentBeforeEdit.CurrentDepartmentId;
+        var responsibleBefore = incidentBeforeEdit.CurrentResponsibleUserId;
+        var editor = new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.ViewDepartmentIncidents]);
+
+        var replacement = await CreateIncidentService(dbContext, editor, storage).UpdateDetailsAsync(created.Data!.Id,
+            NewEditModel(NotificationMethod.OfficialLetter, CreatePdf()));
+
+        Assert.True(replacement.Succeeded, replacement.ErrorMessage);
+        var newKey = (await dbContext.Incidents.SingleAsync()).OfficialLetterAttachmentKey!;
+        Assert.NotEqual(oldKey, newKey);
+        Assert.DoesNotContain(oldKey, storage.Keys);
+        Assert.Contains(newKey, storage.Keys);
+        var incidentAfterEdit = await dbContext.Incidents.SingleAsync();
+        Assert.Equal(statusBefore, incidentAfterEdit.Status);
+        Assert.Equal(departmentBefore, incidentAfterEdit.CurrentDepartmentId);
+        Assert.Equal(responsibleBefore, incidentAfterEdit.CurrentResponsibleUserId);
+        Assert.Equal(statusHistoryBefore, await dbContext.IncidentStatusHistories.CountAsync());
+        Assert.Equal(actionsBefore, await dbContext.IncidentDepartmentActions.CountAsync());
+        Assert.Equal(assignmentsBefore, await dbContext.IncidentDepartmentAssignments.CountAsync());
+        Assert.Equal(shiftsBefore, await dbContext.ShiftAssignments.CountAsync());
+
+        var noReplacement = await CreateIncidentService(dbContext, editor, storage).UpdateDetailsAsync(created.Data.Id,
+            NewEditModel(NotificationMethod.OfficialLetter));
+        Assert.True(noReplacement.Succeeded);
+        Assert.Equal(newKey, (await dbContext.Incidents.SingleAsync()).OfficialLetterAttachmentKey);
+        Assert.Contains(newKey, storage.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_UnauthorizedUserCannotReplaceAttachment()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var created = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints]), storage)
+            .SubmitComplaintAsync(NewCreateModel(NotificationMethod.Phone));
+        Assert.True(created.Succeeded);
+
+        var denied = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, []), storage)
+            .UpdateDetailsAsync(created.Data!.Id, NewEditModel(NotificationMethod.OfficialLetter, CreatePdf()));
+
+        Assert.False(denied.Succeeded);
+        Assert.Equal(0, storage.SaveCount);
+        Assert.Equal(NotificationMethod.Phone, (await dbContext.Incidents.SingleAsync()).NotificationMethod);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_WhenPersistenceFails_CleansStagedFileAndPreservesExistingAttachment()
+    {
+        var interceptor = new FailNextSaveChangesInterceptor();
+        await using var dbContext = await CreateDbContextAsync(interceptor);
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var createModel = NewCreateModel(NotificationMethod.OfficialLetter, CreatePdf());
+        createModel.InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id;
+        var created = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.OpenIncidents]), storage)
+            .SubmitComplaintAsync(createModel);
+        Assert.True(created.Succeeded);
+        var oldKey = (await dbContext.Incidents.SingleAsync()).OfficialLetterAttachmentKey!;
+        interceptor.FailNext = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.ViewDepartmentIncidents]), storage)
+            .UpdateDetailsAsync(created.Data!.Id, NewEditModel(NotificationMethod.OfficialLetter, CreatePdf())));
+
+        Assert.Equal(oldKey, (await dbContext.Incidents.AsNoTracking().SingleAsync()).OfficialLetterAttachmentKey);
+        Assert.Contains(oldKey, storage.Keys);
+        Assert.Single(storage.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_WhenOldFileDeletionFails_KeepsCommittedReplacementAndReportsCleanupFailure()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var createModel = NewCreateModel(NotificationMethod.OfficialLetter, CreatePdf());
+        createModel.InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id;
+        var created = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.OpenIncidents]), storage)
+            .SubmitComplaintAsync(createModel);
+        Assert.True(created.Succeeded);
+        var oldKey = (await dbContext.Incidents.SingleAsync()).OfficialLetterAttachmentKey!;
+        storage.FailNextDelete = true;
+
+        await Assert.ThrowsAsync<IOException>(() => CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.ViewDepartmentIncidents]), storage)
+            .UpdateDetailsAsync(created.Data!.Id, NewEditModel(NotificationMethod.OfficialLetter, CreatePdf())));
+
+        var committedKey = (await dbContext.Incidents.AsNoTracking().SingleAsync()).OfficialLetterAttachmentKey!;
+        Assert.NotEqual(oldKey, committedKey);
+        Assert.Contains(oldKey, storage.Keys);
+        Assert.Contains(committedKey, storage.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateDetails_WhenStagedCleanupFails_ReportsFailureAndPreservesOldAttachment()
+    {
+        var interceptor = new FailNextSaveChangesInterceptor();
+        await using var dbContext = await CreateDbContextAsync(interceptor);
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var createModel = NewCreateModel(NotificationMethod.OfficialLetter, CreatePdf());
+        createModel.InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id;
+        var created = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.OpenIncidents]), storage)
+            .SubmitComplaintAsync(createModel);
+        Assert.True(created.Succeeded);
+        var oldKey = (await dbContext.Incidents.SingleAsync()).OfficialLetterAttachmentKey!;
+        interceptor.FailNext = true;
+        storage.FailNextDelete = true;
+
+        await Assert.ThrowsAsync<AggregateException>(() => CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.ViewDepartmentIncidents]), storage)
+            .UpdateDetailsAsync(created.Data!.Id, NewEditModel(NotificationMethod.OfficialLetter, CreatePdf())));
+
+        Assert.Equal(oldKey, (await dbContext.Incidents.AsNoTracking().SingleAsync()).OfficialLetterAttachmentKey);
+        Assert.Contains(oldKey, storage.Keys);
+        Assert.Equal(2, storage.Keys.Count);
+    }
+
+    [Fact]
+    public async Task GetOfficialLetterAttachment_EnforcesIncidentAuthorizationAndDoesNotExposeStorageKey()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var storage = new TestIncidentAttachmentStorage();
+        var createModel = NewCreateModel(NotificationMethod.OfficialLetter, CreatePdf());
+        createModel.InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id;
+        var created = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.OpenIncidents]), storage)
+            .SubmitComplaintAsync(createModel);
+        Assert.True(created.Succeeded);
+        var key = storage.Keys.Single();
+
+        var denied = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.OtherOfficer.Id, [Permissions.ViewDepartmentIncidents]), storage)
+            .GetOfficialLetterAttachmentAsync(created.Data!.Id);
+        var allowed = await CreateIncidentService(dbContext,
+            new TestCurrentUserContext(seeded.ReceivingOfficer.Id, [Permissions.ViewDepartmentIncidents]), storage)
+            .GetOfficialLetterAttachmentAsync(created.Data.Id);
+
+        Assert.False(denied.Succeeded);
+        Assert.True(allowed.Succeeded);
+        Assert.Equal("application/pdf", allowed.Data!.ContentType);
+        Assert.EndsWith(".pdf", allowed.Data.Extension);
+        await allowed.Data.Content.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(IncidentPriority.Critical)]
+    [InlineData(IncidentPriority.VeryUrgent)]
+    [InlineData(IncidentPriority.Urgent)]
+    public async Task SubmitComplaint_PersistsEachDefinedPriorityAndReportingDetails(IncidentPriority priority)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var service = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints]));
+
+        const string phone = "+00123456789";
+        var result = await service.SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Priority = priority,
+            Title = "Priority test",
+            Description = "Priority and reporter details are saved.",
+            ReportingEntity = "External reporter",
+            ReporterName = "Reporter",
+            ReporterPhone = phone
+        });
+
+        Assert.True(result.Succeeded);
+        var incident = await dbContext.Incidents.SingleAsync();
+        Assert.Equal(priority, incident.Priority);
+        Assert.Equal("External reporter", incident.ReportingEntity);
+        Assert.Equal("Reporter", incident.ReporterName);
+        Assert.Equal(phone, incident.ReporterPhone);
+        Assert.Equal(priority, result.Data!.Priority);
+        Assert.Equal("External reporter", result.Data.ReportingEntity);
+        Assert.Equal("Reporter", result.Data.ReporterName);
+        Assert.Equal(phone, result.Data!.ReporterPhone);
+    }
+
+    [Theory]
+    [InlineData("00123456789")]
+    [InlineData("+00123456789")]
+    public async Task SubmitComplaint_PreservesPhoneText(string phone)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var service = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints]));
+
+        var result = await service.SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Priority = IncidentPriority.Urgent,
+            Title = "Phone preservation",
+            Description = "Phone remains textual.",
+            ReporterPhone = phone
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(phone, (await dbContext.Incidents.SingleAsync()).ReporterPhone);
+    }
+
+    [Theory]
+    [InlineData(IncidentPriority.Critical, "حرجة", "text-bg-danger")]
+    [InlineData(IncidentPriority.VeryUrgent, "عاجلة جداً", "text-bg-warning")]
+    [InlineData(IncidentPriority.Urgent, "عاجلة", "text-bg-info")]
+    public void IncidentPriorityDisplay_UsesExpectedArabicLabelsAndBootstrapColors(
+        IncidentPriority priority,
+        string expectedLabel,
+        string expectedBadgeClass)
+    {
+        Assert.Equal(expectedLabel, IncidentPriorityDisplay.GetLabel(priority));
+        Assert.Equal(expectedBadgeClass, IncidentPriorityDisplay.GetBadgeClass(priority));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData((IncidentPriority)0)]
+    [InlineData((IncidentPriority)99)]
+    public async Task SubmitComplaint_RejectsMissingOrUndefinedPriority(IncidentPriority? priority)
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var service = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, [Permissions.SubmitComplaints]));
+
+        var result = await service.SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Priority = priority,
+            Title = "Priority validation",
+            Description = "An explicit defined priority is required."
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(await dbContext.Incidents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_ChangesOnlyPriorityAndReportingFieldsForAuthorizedDepartment()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        await AddAllDayDutyAssignmentsAsync(dbContext, seeded.ReceivingDepartment, seeded.ReceivingOfficer, seeded.Civilian.Id);
+        var submitter = new TestCurrentUserContext(
+            seeded.Civilian.Id,
+            [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
+        var service = CreateIncidentService(dbContext, submitter);
+        var created = await service.SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Priority = IncidentPriority.Urgent,
+            Title = "Edit boundary test",
+            Description = "Preserve all workflow state.",
+            InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id,
+            ReportingEntity = "Original entity",
+            ReporterName = "Original reporter",
+            ReporterPhone = "00123"
+        });
+        Assert.True(created.Succeeded);
+        var workflowService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.ReceivingOfficer.Id,
+            [Permissions.ViewDepartmentIncidents, Permissions.OpenIncidents]));
+        Assert.True((await workflowService.OpenAsync(created.Data!.Id)).Succeeded);
+        var incident = await dbContext.Incidents.SingleAsync();
+        dbContext.IncidentDepartmentAssignments.Add(new IncidentDepartmentAssignment
+        {
+            IncidentId = incident.Id,
+            DepartmentId = seeded.OtherReceivingDepartment.Id,
+            AssignedByUserId = seeded.ReceivingOfficer.Id,
+            RequiredTask = "Inspect the secondary system."
+        });
+        await dbContext.SaveChangesAsync();
+        var editService = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.ReceivingOfficer.Id,
+            [Permissions.ViewDepartmentIncidents]));
+        var originalStatus = incident.Status;
+        var originalDepartmentId = incident.CurrentDepartmentId;
+        var originalResponsibleId = incident.CurrentResponsibleUserId;
+        var originalStatusHistory = await dbContext.IncidentStatusHistories
+            .OrderBy(item => item.Id).Select(item => new { item.PreviousStatus, item.NewStatus, item.ChangedByUserId, item.ChangeDate, item.Notes })
+            .ToListAsync();
+        var assignmentsBefore = await dbContext.IncidentDepartmentAssignments.CountAsync();
+        var assignmentsBeforeEdit = await dbContext.IncidentDepartmentAssignments
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.DepartmentId, item.Status, item.RequiredTask, item.RemovedAt })
+            .ToListAsync();
+        var shiftAssignmentsBeforeEdit = await dbContext.ShiftAssignments
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.DepartmentId, item.UserId, item.ShiftDefinitionId, item.ShiftDate })
+            .ToListAsync();
+
+        var result = await editService.UpdateDetailsAsync(incident.Id, new IncidentEditViewModel
+        {
+            Priority = IncidentPriority.Critical,
+            ReportingEntity = "Updated entity",
+            ReporterName = "Updated reporter",
+            ReporterPhone = "+001234"
+        });
+
+        Assert.True(result.Succeeded);
+        incident = await dbContext.Incidents.SingleAsync();
+        Assert.Equal(IncidentPriority.Critical, incident.Priority);
+        Assert.Equal("Updated entity", incident.ReportingEntity);
+        Assert.Equal("Updated reporter", incident.ReporterName);
+        Assert.Equal("+001234", incident.ReporterPhone);
+        Assert.Equal(originalStatus, incident.Status);
+        Assert.Equal(originalDepartmentId, incident.CurrentDepartmentId);
+        Assert.Equal(originalResponsibleId, incident.CurrentResponsibleUserId);
+        Assert.Equal(assignmentsBefore, await dbContext.IncidentDepartmentAssignments.CountAsync());
+        Assert.Equal(assignmentsBeforeEdit, await dbContext.IncidentDepartmentAssignments
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.DepartmentId, item.Status, item.RequiredTask, item.RemovedAt })
+            .ToListAsync());
+        Assert.Equal(shiftAssignmentsBeforeEdit, await dbContext.ShiftAssignments
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.DepartmentId, item.UserId, item.ShiftDefinitionId, item.ShiftDate })
+            .ToListAsync());
+        Assert.Equal(originalStatusHistory, await dbContext.IncidentStatusHistories
+            .OrderBy(item => item.Id).Select(item => new { item.PreviousStatus, item.NewStatus, item.ChangedByUserId, item.ChangeDate, item.Notes })
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpdateDetails_RejectsUnauthorizedAndOutOfScopeUsers()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedDepartmentsAndUsersAsync(dbContext);
+        var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints]);
+        var created = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
+        {
+            Priority = IncidentPriority.Urgent,
+            Title = "Edit permission test",
+            Description = "Only authorized scoped users can edit."
+        });
+        Assert.True(created.Succeeded);
+
+        var model = new IncidentEditViewModel
+        {
+            Priority = IncidentPriority.VeryUrgent,
+            ReportingEntity = "Attempt",
+            ReporterName = "Attempt",
+            ReporterPhone = "00123"
+        };
+        var noPermission = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.Civilian.Id, []));
+        Assert.Equal("Permission denied.", (await noPermission.UpdateDetailsAsync(created.Data!.Id, model)).ErrorMessage);
+
+        var controller = new IncidentsController(noPermission, null!, null!, null!, dbContext);
+        Assert.IsType<ForbidResult>(await controller.Edit(created.Data.Id, model, CancellationToken.None));
+
+        var wrongDepartment = CreateIncidentService(dbContext, new TestCurrentUserContext(
+            seeded.OtherOfficer.Id, [Permissions.ViewDepartmentIncidents]));
+        Assert.Equal("Incident not found.", (await wrongDepartment.UpdateDetailsAsync(created.Data.Id, model)).ErrorMessage);
+        Assert.Equal(IncidentPriority.Urgent, (await dbContext.Incidents.SingleAsync()).Priority);
+    }
+
     [Fact]
     public async Task CivilianSubmission_IgnoresForgedReceivingDepartmentAndCannotViewIncidents()
     {
@@ -36,6 +531,7 @@ public class IncidentIntakeTests
 
         var result = await service.SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Water leak",
             Description = "Leak reported in the east wing.",
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
@@ -72,6 +568,7 @@ public class IncidentIntakeTests
 
         var created = await service.SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Power outage",
             Description = "Power is unavailable.",
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
@@ -121,6 +618,7 @@ public class IncidentIntakeTests
             [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
         var created = await CreateIncidentService(dbContext, creator).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Transferred incident",
             Description = "Requires a different department.",
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
@@ -259,6 +757,7 @@ public class IncidentIntakeTests
             [Permissions.SubmitComplaints, Permissions.OpenIncidents]);
         var created = await CreateIncidentService(dbContext, creator).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Unassigned incident",
             Description = "The responsible department assignment must be valid.",
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
@@ -309,6 +808,7 @@ public class IncidentIntakeTests
         var createService = CreateIncidentService(dbContext, submitter);
         var created = await createService.SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Damaged door",
             Description = "Door needs repair."
         });
@@ -364,6 +864,7 @@ public class IncidentIntakeTests
         var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.SubmitTransferRequests]);
         var incident = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Network outage",
             Description = "The local network is unavailable."
         });
@@ -411,6 +912,7 @@ public class IncidentIntakeTests
         var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.SubmitTransferRequests]);
         var created = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Water issue",
             Description = "A valve is leaking."
         });
@@ -625,6 +1127,7 @@ public class IncidentIntakeTests
         var incidentService = CreateIncidentService(dbContext, officerContext);
         var created = await incidentService.SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Equipment failure",
             Description = "The machine stopped working.",
             InitialReceivingDepartmentId = seeded.ReceivingDepartment.Id
@@ -645,6 +1148,7 @@ public class IncidentIntakeTests
         var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.SubmitTransferRequests]);
         var created = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Damaged equipment",
             Description = "Equipment is broken."
         });
@@ -670,6 +1174,7 @@ public class IncidentIntakeTests
         var submitter = new TestCurrentUserContext(seeded.Civilian.Id, [Permissions.SubmitComplaints, Permissions.SubmitTransferRequests]);
         var created = await CreateIncidentService(dbContext, submitter).SubmitComplaintAsync(new IncidentCreateViewModel
         {
+            Priority = IncidentPriority.Urgent,
             Title = "Damaged equipment",
             Description = "Equipment is broken."
         });
@@ -696,11 +1201,44 @@ public class IncidentIntakeTests
         Assert.Empty(await dbContext.IncidentTransfers.ToListAsync());
     }
 
-    private static Task<ApplicationDbContext> CreateDbContextAsync()
+    private static IncidentCreateViewModel NewCreateModel(
+        NotificationMethod method = NotificationMethod.Phone,
+        IFormFile? attachment = null) => new()
+    {
+        Priority = IncidentPriority.Urgent,
+        NotificationMethod = method,
+        OtherNotificationMethodDescription = null,
+        OfficialLetterAttachment = attachment,
+        Title = "Attachment test",
+        Description = "Test notification method and attachment handling."
+    };
+
+    private static IncidentEditViewModel NewEditModel(
+        NotificationMethod method,
+        IFormFile? attachment = null) => new()
+    {
+        Priority = IncidentPriority.Urgent,
+        NotificationMethod = method,
+        OtherNotificationMethodDescription = null,
+        OfficialLetterAttachment = attachment
+    };
+
+    private static IFormFile CreatePdf() => CreateFile("letter.pdf", "application/pdf", "%PDF-1.7 test"u8.ToArray());
+
+    private static IFormFile CreateFile(string fileName, string contentType, byte[] contents) =>
+        new FormFile(new MemoryStream(contents), 0, contents.Length, "OfficialLetterAttachment", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
+
+    private static Task<ApplicationDbContext> CreateDbContextAsync(
+        params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .AddInterceptors(interceptors)
             .Options;
         return Task.FromResult(new ApplicationDbContext(options));
     }
@@ -766,8 +1304,12 @@ public class IncidentIntakeTests
         await dbContext.SaveChangesAsync();
     }
 
-    private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
-        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user), new DutyOfficerSnapshotService(dbContext));
+    private static IncidentService CreateIncidentService(
+        ApplicationDbContext dbContext,
+        ICurrentUserContext user,
+        TestIncidentAttachmentStorage? storage = null) =>
+        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user),
+            new DutyOfficerSnapshotService(dbContext), storage ?? new TestIncidentAttachmentStorage());
 
     private static IncidentTransferService CreateTransferService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
         new(dbContext, CreateMapper(), user, new NoOpAuditLogService(), new DutyOfficerSnapshotService(dbContext));
@@ -818,5 +1360,23 @@ public class IncidentIntakeTests
 
         public Task<ServiceResult<IReadOnlyList<AuditLogViewModel>>> GetRecentAsync(int count, CancellationToken cancellationToken = default) =>
             Task.FromResult(ServiceResult<IReadOnlyList<AuditLogViewModel>>.Failure("Not used in intake tests."));
+    }
+
+    private sealed class FailNextSaveChangesInterceptor : SaveChangesInterceptor
+    {
+        public bool FailNext { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (FailNext)
+            {
+                FailNext = false;
+                throw new InvalidOperationException("Simulated persistence failure.");
+            }
+            return ValueTask.FromResult(result);
+        }
     }
 }

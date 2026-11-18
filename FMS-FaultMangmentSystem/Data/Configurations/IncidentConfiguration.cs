@@ -19,6 +19,27 @@ public class IncidentConfiguration : IEntityTypeConfiguration<Incident>
         builder.Property(incident => incident.Description)
             .HasMaxLength(4000)
             .IsRequired();
+        builder.Property(incident => incident.Priority)
+            .HasConversion<int>()
+            .HasColumnType("int")
+            .IsRequired();
+        builder.Property(incident => incident.ReportingEntity)
+            .HasMaxLength(200)
+            .IsRequired();
+        builder.Property(incident => incident.ReporterName)
+            .HasMaxLength(200)
+            .IsRequired();
+        builder.Property(incident => incident.ReporterPhone)
+            .HasMaxLength(50)
+            .IsRequired();
+        builder.Property(incident => incident.NotificationMethod)
+            .HasConversion<int>()
+            .HasColumnType("int")
+            .IsRequired();
+        builder.Property(incident => incident.OtherNotificationMethodDescription)
+            .HasMaxLength(500);
+        builder.Property(incident => incident.OfficialLetterAttachmentKey)
+            .HasMaxLength(100);
         builder.Property(incident => incident.Status)
             .HasConversion<string>()
             .HasMaxLength(20)

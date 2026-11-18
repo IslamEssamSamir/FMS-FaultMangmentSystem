@@ -713,6 +713,7 @@ public sealed class IncidentTransferService(
         viewModel.FromDepartmentName = request.FromDepartment.Name;
         viewModel.RequestedTargetDepartmentName = request.ToDepartment.Name;
         viewModel.IncidentTitle = request.Incident.Title;
+        viewModel.IncidentPriority = request.Incident.Priority;
         viewModel.CurrentDepartmentName = request.Incident.CurrentDepartment.Name;
         viewModel.CurrentDepartmentId = request.Incident.CurrentDepartmentId;
         viewModel.IncidentStatus = request.Incident.Status;

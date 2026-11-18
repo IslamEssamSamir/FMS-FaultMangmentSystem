@@ -28,6 +28,7 @@
         <div class="col-12 col-md-6 col-xl-4"><label for="filterNumber" class="form-label">رقم البلاغ</label><input id="filterNumber" class="form-control" maxlength="50" /></div>
         <div class="col-12 col-md-6 col-xl-4"><label for="filterTitle" class="form-label">العنوان</label><input id="filterTitle" class="form-control" maxlength="200" /></div>
         <div class="col-12 col-md-6 col-xl-4"><label for="filterStatus" class="form-label">الحالة</label><select id="filterStatus" class="form-select"><option value="">كل الحالات</option><option value="Incoming">وارد</option><option value="Open">مفتوح</option><option value="Resolved">تم الحل</option><option value="Closed">مغلق</option></select></div>
+        <div class="col-12 col-md-6 col-xl-4"><label for="filterPriority" class="form-label">الأولوية</label><select id="filterPriority" class="form-select"><option value="">كل الأولويات</option><option value="Critical">حرجة</option><option value="VeryUrgent">عاجلة جداً</option><option value="Urgent">عاجلة</option></select></div>
         <div class="col-12 col-md-6 col-xl-4"><label for="filterDepartment" class="form-label">القسم</label><select id="filterDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Departments) { <option value="@department.Id">@department.Name</option> }</select></div>
         <div class="col-12 col-md-6 col-xl-4"><label for="filterReportingDepartment" class="form-label">القسم المُبلّغ</label><select id="filterReportingDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.ReportingDepartments) { <option value="@department.Id">@department.Name</option> }</select></div>
         <div class="col-12 col-md-6 col-xl-4"><label for="filterCurrentDepartment" class="form-label">القسم الحالي</label><select id="filterCurrentDepartment" class="form-select"><option value="">كل الأقسام</option>@foreach (var department in Model.Departments) { <option value="@department.Id">@department.Name</option> }</select></div>
@@ -39,7 +40,7 @@
 
 <div class="table-responsive form-panel">
     <table id="incidentTable" class="table align-middle w-100" data-source="@Url.Action("DataTable")" data-details="@Url.Action("Details")">
-        <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الحالة</th><th>القسم المُبلّغ</th><th>القسم الحالي</th><th>تاريخ التسجيل</th><th>التفاصيل</th></tr></thead>
+        <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الأولوية</th><th>الحالة</th><th>القسم المُبلّغ</th><th>القسم الحالي</th><th>تاريخ التسجيل</th><th>التفاصيل</th></tr></thead>
     </table>
 </div>
 
@@ -60,7 +61,7 @@
                 serverSide: true,
                 pageLength: 25,
                 lengthMenu: [10, 25, 50, 100],
-                order: [[5, "desc"]],
+                order: [[6, "desc"]],
                 createdRow: function (row, data) {
                     const status = Number(data.status ?? 0);
                     const className = rowClassMap[status] ?? "incident-row--unknown";
@@ -72,6 +73,7 @@
                         request.incidentNumber = $("#filterNumber").val();
                         request.title = $("#filterTitle").val();
                         request.status = $("#filterStatus").val();
+                        request.priority = $("#filterPriority").val();
                         request.departmentId = $("#filterDepartment").val();
                         request.reportingDepartmentId = $("#filterReportingDepartment").val();
                         request.currentDepartmentId = $("#filterCurrentDepartment").val();
@@ -82,6 +84,15 @@
                 columns: [
                     { data: "incidentNumber", render: DataTable.render.text() },
                     { data: "title", render: DataTable.render.text() },
+                    { data: "priority", render: function (value) {
+                        const map = {
+                            1: { label: "حرجة", className: "text-bg-danger" },
+                            2: { label: "عاجلة جداً", className: "text-bg-warning" },
+                            3: { label: "عاجلة", className: "text-bg-info" }
+                        };
+                        const item = map[value] ?? { label: "غير معروف", className: "text-bg-secondary" };
+                        return '<span class="badge rounded-pill ' + item.className + '">' + item.label + '</span>';
+                    } },
                     { data: "status", render: function (value) {
                         const map = {
                             0: { label: "وارد", className: "text-bg-warning" },
@@ -96,6 +107,9 @@
                     { data: "currentDepartmentName", render: DataTable.render.text() },
                     { data: "createdAt", render: function (value, type) { return type === "display" ? new Date(value).toLocaleString("ar-EG") : value; } },
                     { data: "id", orderable: false, searchable: false, render: function (id) { return '<a class="btn btn-sm btn-outline-primary" href="' + tableElement.dataset.details + '/' + Number(id) + '">التفاصيل</a>'; } }
+                ],
+                columnDefs: [
+                    { targets: 7, orderable: false, searchable: false }
                 ],
                 language: {
                     emptyTable: "لا توجد بلاغات متاحة.",

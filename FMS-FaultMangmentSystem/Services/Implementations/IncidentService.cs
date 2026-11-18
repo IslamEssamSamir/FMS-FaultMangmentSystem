@@ -15,8 +15,11 @@ public sealed class IncidentService(
     IMapper mapper,
     ICurrentUserContext currentUser,
     IAuditLogService auditLogService,
-    IDutyOfficerSnapshotService dutyOfficerSnapshotService) : IIncidentService
+    IDutyOfficerSnapshotService dutyOfficerSnapshotService,
+    IIncidentAttachmentStorage attachmentStorage) : IIncidentService
 {
+    private const long MaximumAttachmentSize = 5 * 1024 * 1024;
+
     public async Task<ServiceResult<IncidentDetailsViewModel>> SubmitComplaintAsync(
         IncidentCreateViewModel model,
         CancellationToken cancellationToken = default)
@@ -25,12 +28,40 @@ public sealed class IncidentService(
         {
             return ServiceResult<IncidentDetailsViewModel>.Failure("ليست لديك صلاحية تقديم البلاغات.");
         }
+        if (model.NotificationMethod is not NotificationMethod notificationMethod || !Enum.IsDefined(notificationMethod))
+        {
+            return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(nameof(model.NotificationMethod), "اختر وسيلة إخطار صالحة.");
+        }
+        var methodError = ValidateNotificationDetails(notificationMethod, model.OtherNotificationMethodDescription,
+            model.OfficialLetterAttachment, existingAttachmentKey: null, requireOfficialLetterUpload: true);
+        if (methodError is not null)
+        {
+            return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(methodError.Value.Field, methodError.Value.Message);
+        }
+        if (model.OfficialLetterAttachment is not null)
+        {
+            var fileError = await ValidateAttachmentContentAsync(model.OfficialLetterAttachment, cancellationToken);
+            if (fileError is not null)
+                return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(fileError.Value.Field, fileError.Value.Message);
+        }
 
         var title = model.Title?.Trim();
         var description = model.Description?.Trim();
+        var reportingEntity = model.ReportingEntity?.Trim();
+        var reporterName = model.ReporterName?.Trim();
+        var reporterPhone = model.ReporterPhone?.Trim();
+        if (model.Priority is not IncidentPriority priority || !Enum.IsDefined(priority))
+        {
+            return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(nameof(model.Priority), "اختر أولوية صالحة للبلاغ.");
+        }
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(description))
         {
             return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(nameof(model.Title), "عنوان البلاغ ووصفه مطلوبان.");
+        }
+        var reportingError = ValidateReportingDetails(reportingEntity, reporterName, reporterPhone);
+        if (reportingError is not null)
+        {
+            return ServiceResult<IncidentDetailsViewModel>.ValidationFailure(reportingError.Value.Field, reportingError.Value.Message);
         }
         if (title.Length > 200)
         {
@@ -72,6 +103,14 @@ public sealed class IncidentService(
         var incident = mapper.Map<Incident>(model);
         incident.Title = title;
         incident.Description = description;
+        incident.Priority = priority;
+        incident.ReportingEntity = reportingEntity ?? string.Empty;
+        incident.ReporterName = reporterName ?? string.Empty;
+        incident.ReporterPhone = reporterPhone ?? string.Empty;
+        incident.NotificationMethod = notificationMethod;
+        incident.OtherNotificationMethodDescription = notificationMethod == NotificationMethod.Other
+            ? model.OtherNotificationMethodDescription!.Trim()
+            : null;
         incident.IncidentNumber = $"INC-{now:yyyyMMdd}-{Guid.NewGuid():N}";
         incident.Status = IncidentStatus.Incoming;
         incident.ReportedByUserId = actor.Id;
@@ -86,20 +125,47 @@ public sealed class IncidentService(
         incident.InitialDutyOfficerFullNameSnapshot = dutyOfficer?.FullName;
         incident.InitialDutyOfficerRankSnapshot = dutyOfficer?.Rank;
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        dbContext.Incidents.Add(incident);
-        dbContext.IncidentStatusHistories.Add(new IncidentStatusHistory
+        string? stagedAttachmentKey = null;
+        var committed = false;
+        try
         {
-            Incident = incident,
-            PreviousStatus = null,
-            NewStatus = IncidentStatus.Incoming,
-            ChangedByUserId = actor.Id,
-            ChangeDate = now,
-            Notes = "Incident submitted."
-        });
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await auditLogService.RecordAsync("Submitted", nameof(Incident), incident.Id.ToString(), incident.IncidentNumber, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            if (notificationMethod == NotificationMethod.OfficialLetter)
+            {
+                stagedAttachmentKey = await StoreValidatedAttachmentAsync(model.OfficialLetterAttachment!, cancellationToken);
+                incident.OfficialLetterAttachmentKey = stagedAttachmentKey;
+            }
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            dbContext.Incidents.Add(incident);
+            dbContext.IncidentStatusHistories.Add(new IncidentStatusHistory
+            {
+                Incident = incident,
+                PreviousStatus = null,
+                NewStatus = IncidentStatus.Incoming,
+                ChangedByUserId = actor.Id,
+                ChangeDate = now,
+                Notes = "Incident submitted."
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.RecordAsync("Submitted", nameof(Incident), incident.Id.ToString(), incident.IncidentNumber, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            if (!committed && stagedAttachmentKey is not null)
+            {
+                try
+                {
+                    await attachmentStorage.DeleteAsync(stagedAttachmentKey, CancellationToken.None);
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException("Incident persistence failed and the staged attachment could not be removed.", cleanupException);
+                }
+            }
+            throw;
+        }
 
         incident.ReportingDepartment = department;
         incident.InitialReceivingDepartment = receivingDepartment;
@@ -181,6 +247,10 @@ public sealed class IncidentService(
         {
             query = query.Where(incident => incident.Status == status);
         }
+        if (request.Priority is IncidentPriority priority)
+        {
+            query = query.Where(incident => incident.Priority == priority);
+        }
         if (request.FromDate is DateOnly fromDate)
         {
             query = query.Where(incident => incident.CreatedAt >= fromDate.ToDateTime(TimeOnly.MinValue));
@@ -208,6 +278,9 @@ public sealed class IncidentService(
         {
             query = query.Where(incident => incident.IncidentNumber.Contains(search) ||
                                             incident.Title.Contains(search) ||
+                                            incident.ReportingEntity.Contains(search) ||
+                                            incident.ReporterName.Contains(search) ||
+                                            incident.ReporterPhone.Contains(search) ||
                                             incident.CurrentDepartment.Name.Contains(search) ||
                                             incident.ReportingDepartment.Name.Contains(search));
         }
@@ -219,6 +292,7 @@ public sealed class IncidentService(
             "incidentnumber" => descending ? query.OrderByDescending(item => item.IncidentNumber) : query.OrderBy(item => item.IncidentNumber),
             "title" => descending ? query.OrderByDescending(item => item.Title) : query.OrderBy(item => item.Title),
             "status" => descending ? query.OrderByDescending(item => item.Status) : query.OrderBy(item => item.Status),
+            "priority" => descending ? query.OrderByDescending(item => item.Priority) : query.OrderBy(item => item.Priority),
             "reportingdepartmentname" => descending ? query.OrderByDescending(item => item.ReportingDepartment.Name) : query.OrderBy(item => item.ReportingDepartment.Name),
             "currentdepartmentname" => descending ? query.OrderByDescending(item => item.CurrentDepartment.Name) : query.OrderBy(item => item.CurrentDepartment.Name),
             "createdat" => descending ? query.OrderByDescending(item => item.CreatedAt) : query.OrderBy(item => item.CreatedAt),
@@ -234,6 +308,10 @@ public sealed class IncidentService(
                 IncidentNumber = incident.IncidentNumber,
                 Title = incident.Title,
                 Status = incident.Status,
+                Priority = incident.Priority,
+                ReportingEntity = incident.ReportingEntity,
+                ReporterName = incident.ReporterName,
+                ReporterPhone = incident.ReporterPhone,
                 ReportingDepartmentName = incident.ReportingDepartment.Name,
                 CurrentDepartmentName = incident.CurrentDepartment.Name,
                 CreatedAt = incident.CreatedAt
@@ -246,6 +324,195 @@ public sealed class IncidentService(
             RecordsTotal = recordsTotal,
             RecordsFiltered = recordsFiltered,
             Data = rows
+        });
+    }
+
+    public async Task<ServiceResult<bool>> UpdateDetailsAsync(
+        int incidentId,
+        IncidentEditViewModel model,
+        CancellationToken cancellationToken = default)
+    {
+        if (currentUser.IsInRole(RolePermissions.CivilianEmployee) ||
+            (!currentUser.HasPermission(Permissions.ViewAllIncidents) &&
+             !currentUser.HasPermission(Permissions.ViewDepartmentIncidents)))
+        {
+            return ServiceResult<bool>.Failure("Permission denied.");
+        }
+
+        if (model.Priority is not IncidentPriority priority || !Enum.IsDefined(priority))
+        {
+            return ServiceResult<bool>.ValidationFailure(nameof(model.Priority), "اختر أولوية صالحة للبلاغ.");
+        }
+        if (model.NotificationMethod is not NotificationMethod notificationMethod || !Enum.IsDefined(notificationMethod))
+        {
+            return ServiceResult<bool>.ValidationFailure(nameof(model.NotificationMethod), "اختر وسيلة إخطار صالحة.");
+        }
+
+        var reportingEntity = model.ReportingEntity?.Trim();
+        var reporterName = model.ReporterName?.Trim();
+        var reporterPhone = model.ReporterPhone?.Trim();
+        var reportingError = ValidateReportingDetails(reportingEntity, reporterName, reporterPhone);
+        if (reportingError is not null)
+        {
+            return ServiceResult<bool>.ValidationFailure(reportingError.Value.Field, reportingError.Value.Message);
+        }
+        var methodError = ValidateNotificationDetails(notificationMethod, model.OtherNotificationMethodDescription,
+            model.OfficialLetterAttachment, existingAttachmentKey: "pending", requireOfficialLetterUpload: false);
+        if (methodError is not null)
+        {
+            return ServiceResult<bool>.ValidationFailure(methodError.Value.Field, methodError.Value.Message);
+        }
+        if (model.OfficialLetterAttachment is not null)
+        {
+            var fileError = await ValidateAttachmentContentAsync(model.OfficialLetterAttachment, cancellationToken);
+            if (fileError is not null)
+                return ServiceResult<bool>.ValidationFailure(fileError.Value.Field, fileError.Value.Message);
+        }
+
+        var canViewAll = currentUser.IsInRole(RolePermissions.SystemSupervisor) &&
+                         currentUser.HasPermission(Permissions.ViewAllIncidents);
+        var actor = await GetActiveActorAsync(requireDepartment: !canViewAll, cancellationToken);
+        if (actor is null)
+        {
+            return ServiceResult<bool>.Failure("The current account is unavailable.");
+        }
+
+        var query = dbContext.Incidents.Where(incident => incident.Id == incidentId);
+        if (!canViewAll)
+        {
+            query = query.Where(incident => incident.CurrentDepartmentId == actor.DepartmentId ||
+                incident.DepartmentAssignments.Any(assignment => assignment.DepartmentId == actor.DepartmentId && assignment.RemovedAt == null));
+        }
+        var incident = await query.SingleOrDefaultAsync(cancellationToken);
+        if (incident is null)
+        {
+            return ServiceResult<bool>.Failure("Incident not found.");
+        }
+
+        if (notificationMethod == NotificationMethod.OfficialLetter && model.OfficialLetterAttachment is null &&
+            !await HasValidStoredAttachmentAsync(incident.OfficialLetterAttachmentKey, cancellationToken))
+        {
+            return ServiceResult<bool>.ValidationFailure(nameof(model.OfficialLetterAttachment), "يرجى إرفاق صورة أو ملف PDF للجواب الرسمي.");
+        }
+
+        var oldAttachmentKey = incident.OfficialLetterAttachmentKey;
+        string? stagedAttachmentKey = null;
+        var committed = false;
+        var originalState = new
+        {
+            incident.Priority,
+            incident.ReportingEntity,
+            incident.ReporterName,
+            incident.ReporterPhone,
+            incident.NotificationMethod,
+            incident.OtherNotificationMethodDescription,
+            incident.OfficialLetterAttachmentKey
+        };
+        try
+        {
+            if (model.OfficialLetterAttachment is not null)
+            {
+                stagedAttachmentKey = await StoreValidatedAttachmentAsync(model.OfficialLetterAttachment, cancellationToken);
+            }
+
+            incident.Priority = priority;
+            incident.ReportingEntity = reportingEntity ?? string.Empty;
+            incident.ReporterName = reporterName ?? string.Empty;
+            incident.ReporterPhone = reporterPhone ?? string.Empty;
+            incident.NotificationMethod = notificationMethod;
+            incident.OtherNotificationMethodDescription = notificationMethod == NotificationMethod.Other
+                ? model.OtherNotificationMethodDescription!.Trim()
+                : null;
+            if (stagedAttachmentKey is not null)
+            {
+                incident.OfficialLetterAttachmentKey = stagedAttachmentKey;
+            }
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.RecordAsync("DetailsUpdated", nameof(Incident), incident.Id.ToString(), incident.IncidentNumber, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            committed = true;
+        }
+        catch
+        {
+            incident.Priority = originalState.Priority;
+            incident.ReportingEntity = originalState.ReportingEntity;
+            incident.ReporterName = originalState.ReporterName;
+            incident.ReporterPhone = originalState.ReporterPhone;
+            incident.NotificationMethod = originalState.NotificationMethod;
+            incident.OtherNotificationMethodDescription = originalState.OtherNotificationMethodDescription;
+            incident.OfficialLetterAttachmentKey = originalState.OfficialLetterAttachmentKey;
+            dbContext.Entry(incident).State = EntityState.Unchanged;
+            if (!committed && stagedAttachmentKey is not null)
+            {
+                try
+                {
+                    await attachmentStorage.DeleteAsync(stagedAttachmentKey, CancellationToken.None);
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException("Incident persistence failed and the staged attachment could not be removed.", cleanupException);
+                }
+            }
+            throw;
+        }
+
+        if (stagedAttachmentKey is not null && oldAttachmentKey is not null && oldAttachmentKey != incident.OfficialLetterAttachmentKey)
+        {
+            await attachmentStorage.DeleteAsync(oldAttachmentKey, cancellationToken);
+        }
+        return ServiceResult<bool>.Success(true);
+    }
+
+    private async Task<bool> HasValidStoredAttachmentAsync(string? storageKey, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(storageKey)) return false;
+        var extension = Path.GetExtension(storageKey).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".pdf")) return false;
+        await using var stream = await attachmentStorage.OpenReadAsync(storageKey, cancellationToken);
+        if (stream is null) return false;
+        var header = new byte[12];
+        var read = await stream.ReadAsync(header.AsMemory(), cancellationToken);
+        return HasValidSignature(extension, header.AsSpan(0, read));
+    }
+
+    public async Task<ServiceResult<IncidentAttachmentDownloadViewModel>> GetOfficialLetterAttachmentAsync(
+        int incidentId,
+        CancellationToken cancellationToken = default)
+    {
+        var details = await GetDetailsAsync(incidentId, cancellationToken);
+        if (!details.Succeeded)
+        {
+            return ServiceResult<IncidentAttachmentDownloadViewModel>.Failure(details.ErrorMessage ?? "Incident not found.");
+        }
+
+        var key = await dbContext.Incidents.AsNoTracking()
+            .Where(item => item.Id == incidentId)
+            .Select(item => item.OfficialLetterAttachmentKey)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return ServiceResult<IncidentAttachmentDownloadViewModel>.Failure("Attachment not found.");
+        }
+
+        var stream = await attachmentStorage.OpenReadAsync(key, cancellationToken);
+        if (stream is null)
+            return ServiceResult<IncidentAttachmentDownloadViewModel>.Failure("Attachment not found.");
+
+        var extension = Path.GetExtension(key).ToLowerInvariant();
+        var contentType = extension switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/pdf"
+        };
+        return ServiceResult<IncidentAttachmentDownloadViewModel>.Success(new IncidentAttachmentDownloadViewModel
+        {
+            Content = stream,
+            ContentType = contentType,
+            Extension = extension
         });
     }
 
@@ -593,6 +860,7 @@ public sealed class IncidentService(
         viewModel.InitialReceivingDepartmentName = incident.InitialReceivingDepartment.Name;
         viewModel.CurrentResponsibleUserName = incident.CurrentResponsibleUser?.FullName;
         viewModel.ResolvedByUserName = incident.ResolvedByUser?.FullName;
+        viewModel.HasOfficialLetterAttachment = !string.IsNullOrWhiteSpace(incident.OfficialLetterAttachmentKey);
 
         var assignments = await dbContext.IncidentDepartmentAssignments
             .AsNoTracking()
@@ -768,6 +1036,101 @@ public sealed class IncidentService(
 
         return viewModel;
     }
+
+    private static (string Field, string Message)? ValidateReportingDetails(
+        string? reportingEntity,
+        string? reporterName,
+        string? reporterPhone)
+    {
+        if (reportingEntity?.Length > 200)
+            return (nameof(IncidentCreateViewModel.ReportingEntity), "يجب ألا يتجاوز اسم الجهة المبلغة 200 حرف.");
+        if (reporterName?.Length > 200)
+            return (nameof(IncidentCreateViewModel.ReporterName), "يجب ألا يتجاوز اسم المبلّغ 200 حرف.");
+        if (reporterPhone?.Length > 50)
+            return (nameof(IncidentCreateViewModel.ReporterPhone), "يجب ألا يتجاوز رقم الهاتف 50 حرفًا.");
+        return null;
+    }
+
+    private static (string Field, string Message)? ValidateNotificationDetails(
+        NotificationMethod method,
+        string? otherDescription,
+        IFormFile? attachment,
+        string? existingAttachmentKey,
+        bool requireOfficialLetterUpload)
+    {
+        if (method == NotificationMethod.Other)
+        {
+            if (string.IsNullOrWhiteSpace(otherDescription))
+                return (nameof(IncidentCreateViewModel.OtherNotificationMethodDescription), "يرجى توضيح وسيلة الإخطار الأخرى.");
+            if (otherDescription.Trim().Length > 500)
+                return (nameof(IncidentCreateViewModel.OtherNotificationMethodDescription), "يجب ألا يتجاوز توضيح وسيلة الإخطار 500 حرف.");
+        }
+        if (method == NotificationMethod.OfficialLetter && requireOfficialLetterUpload && attachment is null)
+            return (nameof(IncidentCreateViewModel.OfficialLetterAttachment), "يرجى إرفاق صورة أو ملف PDF للجواب الرسمي.");
+        if (method == NotificationMethod.OfficialLetter && !requireOfficialLetterUpload && attachment is null && existingAttachmentKey is null)
+            return (nameof(IncidentEditViewModel.OfficialLetterAttachment), "يرجى إرفاق صورة أو ملف PDF للجواب الرسمي.");
+        if (attachment is not null)
+        {
+            var validation = ValidateAttachmentMetadata(attachment);
+            if (validation is not null) return validation;
+            if (method != NotificationMethod.OfficialLetter)
+                return (nameof(IncidentCreateViewModel.OfficialLetterAttachment), "لا يمكن إرفاق ملف إلا عند اختيار جواب رسمي.");
+        }
+        return null;
+    }
+
+    private static (string Field, string Message)? ValidateAttachmentMetadata(IFormFile attachment)
+    {
+        if (attachment.Length <= 0 || attachment.Length > MaximumAttachmentSize)
+            return (nameof(IncidentCreateViewModel.OfficialLetterAttachment), "يجب ألا يتجاوز حجم الملف 5 ميجابايت.");
+        var extension = Path.GetExtension(attachment.FileName).ToLowerInvariant();
+        var expectedContentType = extension switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".pdf" => "application/pdf",
+            _ => null
+        };
+        return expectedContentType is null || !string.Equals(attachment.ContentType, expectedContentType, StringComparison.OrdinalIgnoreCase)
+            ? (nameof(IncidentCreateViewModel.OfficialLetterAttachment), "يسمح بملفات JPG أو PNG أو WEBP أو PDF فقط.")
+            : null;
+    }
+
+    private async Task<string> StoreValidatedAttachmentAsync(IFormFile attachment, CancellationToken cancellationToken)
+    {
+        var metadataError = ValidateAttachmentMetadata(attachment);
+        if (metadataError is not null) throw new InvalidDataException(metadataError.Value.Message);
+        var extension = Path.GetExtension(attachment.FileName).ToLowerInvariant();
+        await using var stream = attachment.OpenReadStream();
+        stream.Position = 0;
+        return await attachmentStorage.SaveAsync(stream, extension, cancellationToken);
+    }
+
+    private static async Task<(string Field, string Message)?> ValidateAttachmentContentAsync(
+        IFormFile attachment,
+        CancellationToken cancellationToken)
+    {
+        var metadataError = ValidateAttachmentMetadata(attachment);
+        if (metadataError is not null) return metadataError;
+
+        var extension = Path.GetExtension(attachment.FileName).ToLowerInvariant();
+        await using var stream = attachment.OpenReadStream();
+        var header = new byte[12];
+        var read = await stream.ReadAsync(header.AsMemory(), cancellationToken);
+        return HasValidSignature(extension, header.AsSpan(0, read))
+            ? null
+            : (nameof(IncidentCreateViewModel.OfficialLetterAttachment), "محتوى الملف لا يطابق نوعه المعلن.");
+    }
+
+    private static bool HasValidSignature(string extension, ReadOnlySpan<byte> header) => extension switch
+    {
+        ".jpg" or ".jpeg" => header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+        ".png" => header.Length >= 8 && header[..8].SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }),
+        ".webp" => header.Length >= 12 && header[..4].SequenceEqual("RIFF"u8) && header[8..12].SequenceEqual("WEBP"u8),
+        ".pdf" => header.Length >= 5 && header[..5].SequenceEqual("%PDF-"u8),
+        _ => false
+    };
 
     private static string GetDepartmentColorClass(int departmentId) =>
         $"department-color-{Math.Abs(departmentId % 8)}";

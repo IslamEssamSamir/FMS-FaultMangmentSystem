@@ -65,7 +65,9 @@ public sealed class UsersController(IUserService userService, IDepartmentService
         return View(new UserUpdateViewModel
         {
             FullName = user.FullName,
-            DepartmentId = user.DepartmentId
+            Rank = user.Rank ?? string.Empty,
+            DepartmentId = user.DepartmentId,
+            RoleName = user.RoleName ?? string.Empty
         });
     }
 
@@ -93,10 +95,21 @@ public sealed class UsersController(IUserService userService, IDepartmentService
     public async Task<IActionResult> SetActive(string id, bool isActive, CancellationToken cancellationToken)
     {
         var result = await userService.SetActiveAsync(id, isActive, cancellationToken);
-        if (!result.Succeeded) TempData["ErrorMessage"] = result.ErrorMessage ?? "تعذر تغيير حالة الحساب.";
+        if (!result.Succeeded)
+        {
+            TempData["ErrorMessage"] = GetErrorMessage(result, "تعذر تغيير حالة الحساب.");
+        }
         else TempData["SuccessMessage"] = isActive ? "تم تفعيل الحساب." : "تم إيقاف الحساب.";
         return RedirectToAction(nameof(Details), new { id });
     }
+
+    private static string GetErrorMessage<T>(ServiceResult<T> result, string fallback)
+        => result.ErrorMessage ??
+           (result.ValidationErrors.Count > 0 ? result.ValidationErrors.First().Value.FirstOrDefault() ?? fallback : fallback);
+
+    private static string GetRoleErrorMessage<T>(ServiceResult<T> result, string fallback)
+        => result.ErrorMessage ??
+           (result.ValidationErrors.Count > 0 ? result.ValidationErrors.First().Value.FirstOrDefault() ?? fallback : fallback);
 
     [HttpGet]
     public async Task<IActionResult> Details(string id, CancellationToken cancellationToken)
@@ -110,7 +123,7 @@ public sealed class UsersController(IUserService userService, IDepartmentService
     public async Task<IActionResult> ChangeRole(string id, string roleName, CancellationToken cancellationToken)
     {
         var result = await userService.ChangeRoleAsync(id, roleName, cancellationToken);
-        if (!result.Succeeded) TempData["ErrorMessage"] = result.ErrorMessage ?? "تعذر تغيير الدور.";
+        if (!result.Succeeded) TempData["ErrorMessage"] = GetRoleErrorMessage(result, "تعذر تغيير الدور.");
         else TempData["SuccessMessage"] = "تم تحديث دور المستخدم.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -151,6 +164,8 @@ public sealed class UsersController(IUserService userService, IDepartmentService
     {
         var departments = await departmentService.GetActiveAsync(cancellationToken);
         ViewBag.Departments = departments.Data ?? [];
+        ViewBag.Ranks = IncidentManagementSystem.Models.Enums.UserRank.All;
+        ViewBag.RoleOptions = IncidentManagementSystem.Models.Enums.UserRoleSelection.Options;
         ViewBag.Roles = IncidentManagementSystem.Authorization.RolePermissions.All.Keys.OrderBy(role => role).ToList();
     }
 
@@ -159,8 +174,13 @@ public sealed class UsersController(IUserService userService, IDepartmentService
         if (result.ValidationErrors is { Count: > 0 })
         {
             foreach (var (field, errors) in result.ValidationErrors)
-                foreach (var error in errors) ModelState.AddModelError(field, error);
+                foreach (var error in errors)
+                    ModelState.AddModelError(field, error);
         }
-        else ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "تعذر إكمال العملية.");
+        else
+        {
+            ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "تعذر إكمال العملية.");
+        }
     }
 }
+

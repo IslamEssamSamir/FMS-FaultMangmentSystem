@@ -17,6 +17,7 @@ public sealed class IncidentDataTablesRequest
     public string? IncidentNumber { get; set; }
     public string? Title { get; set; }
     public IncidentStatus? Status { get; set; }
+    public IncidentPriority? Priority { get; set; }
     public int? DepartmentId { get; set; }
     public int? ReportingDepartmentId { get; set; }
     public int? CurrentDepartmentId { get; set; }
@@ -40,6 +41,12 @@ public sealed class IncidentSearchResultViewModel
     public string IncidentNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public IncidentStatus Status { get; set; }
+    public IncidentPriority Priority { get; set; }
+    public NotificationMethod NotificationMethod { get; set; }
+    public string? OtherNotificationMethodDescription { get; set; }
+    public string? ReportingEntity { get; set; }
+    public string? ReporterName { get; set; }
+    public string? ReporterPhone { get; set; }
     public string ReportingDepartmentName { get; set; } = string.Empty;
     public string CurrentDepartmentName { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

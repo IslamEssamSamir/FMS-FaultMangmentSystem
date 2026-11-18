@@ -566,7 +566,7 @@ public class IncidentDepartmentServiceTests
     }
 
     private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, TestCurrentUserContext user) =>
-        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user), new DutyOfficerSnapshotService(dbContext));
+        new(dbContext, CreateMapper(), user, new AuditLogService(dbContext, CreateMapper(), user), new DutyOfficerSnapshotService(dbContext), new TestIncidentAttachmentStorage());
 
     private static IMapper CreateMapper() => new MapperConfiguration(configuration =>
     {

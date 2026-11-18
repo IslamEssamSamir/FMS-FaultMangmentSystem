@@ -24,6 +24,19 @@
 <section class="form-panel mb-4">
     <dl class="row">
         <dt class="col-sm-3">الحالة</dt><dd class="col-sm-9">@incident.Status</dd>
+        <dt class="col-sm-3">الأولوية</dt><dd class="col-sm-9"><span class="badge rounded-pill @IncidentPriorityDisplay.GetBadgeClass(incident.Priority)">@IncidentPriorityDisplay.GetLabel(incident.Priority)</span></dd>
+        <dt class="col-sm-3">جهة الإخطار</dt><dd class="col-sm-9">@(string.IsNullOrWhiteSpace(incident.ReportingEntity) ? "—" : incident.ReportingEntity)</dd>
+        <dt class="col-sm-3">اسم القائم بالإخطار</dt><dd class="col-sm-9">@(string.IsNullOrWhiteSpace(incident.ReporterName) ? "—" : incident.ReporterName)</dd>
+        <dt class="col-sm-3">رقم التواصل للقائم بالإخطار</dt><dd class="col-sm-9" dir="ltr">@(string.IsNullOrWhiteSpace(incident.ReporterPhone) ? "—" : incident.ReporterPhone)</dd>
+        <dt class="col-sm-3">وسيلة الإخطار</dt><dd class="col-sm-9">@NotificationMethodDisplay.GetLabel(incident.NotificationMethod)</dd>
+        @if (incident.NotificationMethod == NotificationMethod.Other && !string.IsNullOrWhiteSpace(incident.OtherNotificationMethodDescription))
+        {
+            <dt class="col-sm-3">توضيح وسيلة الإخطار</dt><dd class="col-sm-9">@incident.OtherNotificationMethodDescription</dd>
+        }
+        @if (incident.HasOfficialLetterAttachment)
+        {
+            <dt class="col-sm-3">مرفق الجواب الرسمي</dt><dd class="col-sm-9"><a asp-action="OfficialLetterAttachment" asp-route-id="@incident.Id" class="btn btn-outline-secondary btn-sm">عرض المرفق</a></dd>
+        }
         <dt class="col-sm-3">القسم المُبلّغ</dt><dd class="col-sm-9">@incident.ReportingDepartmentName</dd>
         <dt class="col-sm-3">القسم المستقبِل الأولي</dt><dd class="col-sm-9">@incident.InitialReceivingDepartmentName</dd>
         <dt class="col-sm-3">القسم الحالي</dt><dd class="col-sm-9">@incident.CurrentDepartmentName</dd>
@@ -41,6 +54,11 @@
             <dt class="col-sm-3">تاريخ الإغلاق النهائي</dt><dd class="col-sm-9">@incident.ClosedAt?.ToLocalTime().ToString("g")</dd>
         }
     </dl>
+
+    @if (User.HasClaim(Permissions.ClaimType, Permissions.ViewAllIncidents) || User.HasClaim(Permissions.ClaimType, Permissions.ViewDepartmentIncidents))
+    {
+        <a asp-action="Edit" asp-route-id="@incident.Id" class="btn btn-outline-primary btn-sm mb-3">تعديل بيانات البلاغ</a>
+    }
 
     @if (incident.Status == IncidentStatus.Incoming && User.HasClaim(Permissions.ClaimType, Permissions.OpenIncidents))
     {

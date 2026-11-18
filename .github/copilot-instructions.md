@@ -2,3 +2,4 @@
 
 ## Project Guidelines
 - For this workspace, follow the Incident Management System architecture and standards: single ASP.NET Core MVC .NET 10 project using EF Core SQL Server Express, Identity permission-based authorization with exactly four roles and explicit permissions, four incident statuses, async services, strongly typed ViewModels, Fluent API, secure configuration, and phase-by-phase inspect/implement/build/report workflow. Prefer Razor Pages only when directly relevant to the requested task, while the project standards specify MVC.
+- For Incident implementation: explicitly assign stable numeric IncidentPriority enum values; backfill existing records to Urgent only in the migration with no permanent DB default; validate undefined enum values; edit only priority and reporter fields with service-enforced scoped permissions; preserve status/workflow; inspect all projections and migration safety before reporting validation.

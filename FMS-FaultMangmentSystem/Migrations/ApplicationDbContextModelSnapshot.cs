@@ -156,12 +156,41 @@ namespace IncidentManagementSystem.Migrations
                     b.Property<int>("InitialReceivingDepartmentId")
                         .HasColumnType("int");
 
+                    b.Property<int>("NotificationMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OfficialLetterAttachmentKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OtherNotificationMethodDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
                     b.Property<string>("ReportedByUserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("ReporterName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReporterPhone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<int>("ReportingDepartmentId")
                         .HasColumnType("int");
+
+                    b.Property<string>("ReportingEntity")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ResolutionSteps")
                         .HasMaxLength(8000)

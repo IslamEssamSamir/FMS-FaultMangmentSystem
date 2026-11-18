@@ -21,6 +21,7 @@
     <h2 class="h5">بيانات الطلب</h2>
     <dl class="row">
         <dt class="col-sm-3">حالة البلاغ</dt><dd class="col-sm-9"><partial name="_StatusBadge" model="request.IncidentStatus" /></dd>
+        <dt class="col-sm-3">أولوية البلاغ</dt><dd class="col-sm-9"><span class="badge rounded-pill @IncidentPriorityDisplay.GetBadgeClass(request.IncidentPriority)">@IncidentPriorityDisplay.GetLabel(request.IncidentPriority)</span></dd>
         <dt class="col-sm-3">حالة الطلب</dt><dd class="col-sm-9"><partial name="_StatusBadge" model="request.RequestStatus" /></dd>
         <dt class="col-sm-3">القسم الحالي</dt><dd class="col-sm-9">@request.CurrentDepartmentName</dd>
         <dt class="col-sm-3">القسم المُحيل</dt><dd class="col-sm-9">@request.FromDepartmentName</dd>

@@ -30,6 +30,135 @@
     font-synthesis: none;
 }
 
+.dashboard-date-filter {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    max-width: 360px;
+}
+
+.dashboard-date-filter .form-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.dashboard-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 22px;
+    padding: 16px 20px;
+    border: 1px solid currentColor;
+    border-radius: 14px;
+    font-weight: 800;
+}
+
+.dashboard-alert--critical {
+    color: #842029;
+    background: #f8d7da;
+    animation: dashboard-danger-pulse 1.15s ease-in-out infinite alternate;
+}
+
+.dashboard-alert--warning {
+    color: #664d03;
+    background: #fff3cd;
+}
+
+.dashboard-alert--safe {
+    color: #0f5132;
+    background: #d1e7dd;
+}
+
+.dashboard-alert-indicator {
+    flex: 0 0 14px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.dashboard-duty-grid {
+    margin-bottom: 22px;
+}
+
+.duty-officer-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.duty-officer-card {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.duty-officer-card h3,
+.duty-officer-card p {
+    margin: 0 0 6px;
+}
+
+.duty-officer-card h3 {
+    color: var(--navy-800);
+    font-size: 0.9rem;
+}
+
+.duty-officer-name {
+    font-weight: 800;
+}
+
+.duty-officer-empty {
+    color: #842029;
+    font-weight: 700;
+}
+
+.duty-period {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.dashboard-critical-row > td {
+    color: #58151c !important;
+    background-color: #f1aeb5 !important;
+    font-weight: 700;
+}
+
+.dashboard-critical-row > td:first-child::before {
+    content: "تحذير حرج · ";
+    font-weight: 900;
+}
+
+@keyframes dashboard-danger-pulse {
+    from { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.12); }
+    to { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0.42); }
+}
+
+@keyframes dashboard-critical-row-pulse {
+    0%, 100% { background-color: #f1aeb5; }
+    50% { background-color: #dc3545; }
+}
+
+.dashboard-critical-row > td {
+    animation: dashboard-critical-row-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-alert--critical,
+    .dashboard-critical-row > td {
+        animation: none;
+    }
+
+    .dashboard-critical-row > td {
+        background-color: #f1aeb5 !important;
+    }
+}
+
 html {
     min-width: 320px;
     min-height: 100%;

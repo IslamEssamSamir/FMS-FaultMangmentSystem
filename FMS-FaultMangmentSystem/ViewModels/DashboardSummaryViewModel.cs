@@ -12,6 +12,9 @@ public enum DashboardKind
 public sealed class DashboardSummaryViewModel
 {
     public DashboardKind Kind { get; set; }
+    public DashboardDateFilter DateFilter { get; set; } = DashboardDateFilter.Today;
+    public IReadOnlyList<DutyOfficerPeriodViewModel> CurrentDutyOfficers { get; set; } = [];
+    public IReadOnlyList<DutyOfficerPeriodViewModel> PreviousDutyOfficers { get; set; } = [];
     public SystemAdministrationDashboardViewModel? Administration { get; set; }
     public SupervisorDashboardViewModel? Supervisor { get; set; }
     public DepartmentOfficerDashboardViewModel? DepartmentOfficer { get; set; }
@@ -27,6 +30,19 @@ public sealed class SystemAdministrationDashboardViewModel
 
 public sealed class SupervisorDashboardViewModel
 {
+    public int TotalIncidents { get; set; }
+    public int IncomingIncidents { get; set; }
+    public int OpenIncidents { get; set; }
+    public int SettledIncidents { get; set; }
+    public int ClosedIncidentsCount { get; set; }
+    public int RemainingNotClosed { get; set; }
+    public int UnresolvedCriticalIncidents { get; set; }
+    public DashboardAlertLevel AlertLevel { get; set; }
+    public DateTime LocalNow { get; set; }
+    public DashboardDateFilter DateFilter { get; set; } = DashboardDateFilter.Today;
+    public IReadOnlyList<DashboardIncidentRowViewModel> IncidentRows { get; set; } = [];
+    public int IncidentRecordsTotal { get; set; }
+    public int IncidentRecordsFiltered { get; set; }
     public int TotalIncomingIncidents { get; set; }
     public int IncomingIncidentsAwaitingReview { get; set; }
     public int TransferRequestsAwaitingReview { get; set; }
@@ -56,6 +72,7 @@ public sealed class DepartmentIncidentCountViewModel
 public sealed class RecentTransferViewModel
 {
     public string IncidentNumber { get; set; } = string.Empty;
+    public IncidentPriority Priority { get; set; }
     public string FromDepartmentName { get; set; } = string.Empty;
     public string ToDepartmentName { get; set; } = string.Empty;
     public DateTime TransferDate { get; set; }

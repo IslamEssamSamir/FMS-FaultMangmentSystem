@@ -40,6 +40,7 @@ public class TransferRequestViewModel
     public string FromDepartmentName { get; set; } = string.Empty;
     public string RequestedTargetDepartmentName { get; set; } = string.Empty;
     public string IncidentTitle { get; set; } = string.Empty;
+    public IncidentPriority IncidentPriority { get; set; }
     public string CurrentDepartmentName { get; set; } = string.Empty;
     public int CurrentDepartmentId { get; set; }
     public IncidentStatus IncidentStatus { get; set; }

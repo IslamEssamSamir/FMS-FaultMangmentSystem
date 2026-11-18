@@ -25,6 +25,7 @@ public sealed class TransferProfile : Profile
 
         CreateMap<IncidentTransferRequest, TransferRequestViewModel>()
             .ForMember(destination => destination.IncidentNumber, options => options.Ignore())
+            .ForMember(destination => destination.IncidentPriority, options => options.Ignore())
             .ForMember(destination => destination.RequestedByName, options => options.Ignore());
     }
 }

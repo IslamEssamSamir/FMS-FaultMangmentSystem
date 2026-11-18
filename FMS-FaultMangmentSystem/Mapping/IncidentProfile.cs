@@ -12,6 +12,10 @@ public sealed class IncidentProfile : Profile
             .ForMember(destination => destination.Id, options => options.Ignore())
             .ForMember(destination => destination.IncidentNumber, options => options.Ignore())
             .ForMember(destination => destination.Status, options => options.Ignore())
+            .ForMember(destination => destination.Priority, options => options.Ignore())
+            .ForMember(destination => destination.NotificationMethod, options => options.Ignore())
+            .ForMember(destination => destination.OtherNotificationMethodDescription, options => options.Ignore())
+            .ForMember(destination => destination.OfficialLetterAttachmentKey, options => options.Ignore())
             .ForMember(destination => destination.ReportedByUserId, options => options.Ignore())
             .ForMember(destination => destination.ReportingDepartmentId, options => options.Ignore())
             .ForMember(destination => destination.InitialReceivingDepartmentId, options => options.Ignore())
@@ -30,7 +34,8 @@ public sealed class IncidentProfile : Profile
             .ForMember(destination => destination.ResolvedByUser, options => options.Ignore());
 
         CreateMap<Incident, IncidentListItemViewModel>()
-            .ForMember(destination => destination.CurrentDepartmentName, options => options.Ignore());
+            .ForMember(destination => destination.CurrentDepartmentName, options => options.Ignore())
+            .ForMember(destination => destination.HasOfficialLetterAttachment, options => options.Ignore());
 
         CreateMap<Incident, IncidentDetailsViewModel>()
             .IncludeBase<Incident, IncidentListItemViewModel>()

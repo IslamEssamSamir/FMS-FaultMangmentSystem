@@ -1,6 +1,7 @@
 using AutoMapper;
 using IncidentManagementSystem.Authorization;
 using IncidentManagementSystem.Data;
+using IncidentManagementSystem.Models.Enums;
 using IncidentManagementSystem.Models.Identity;
 using IncidentManagementSystem.Services.Interfaces;
 using IncidentManagementSystem.ViewModels;
@@ -73,12 +74,20 @@ public sealed class UserService(
             return ServiceResult<UserViewModel>.Failure("Permission denied to assign roles.");
         }
 
-        if (!RolePermissions.All.ContainsKey(model.RoleName))
+        model.Rank = UserRank.Normalize(model.Rank) ?? string.Empty;
+        if (!UserRank.IsAllowed(model.Rank))
         {
-            return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.RoleName), "Choose one of the predefined roles.");
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.Rank), "اختر رتبة من القائمة المحددة.");
         }
 
-        if (RequiresDepartment(model.RoleName) && model.DepartmentId is null)
+        var effectiveRoleName = ResolveEffectiveRoleName(model.Rank, model.RoleName);
+        if (string.IsNullOrWhiteSpace(effectiveRoleName) || !RolePermissions.All.ContainsKey(effectiveRoleName))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.RoleName), "اختر دورًا صحيحًا من القائمة المتاحة.");
+        }
+
+        model.RoleName = effectiveRoleName;
+        if (RequiresDepartment(effectiveRoleName) && model.DepartmentId is null)
         {
             return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.DepartmentId), "A department is required for this role.");
         }
@@ -89,7 +98,7 @@ public sealed class UserService(
             return ServiceResult<UserViewModel>.Failure(departmentResult.ErrorMessage!);
         }
 
-        var role = await roleManager.FindByNameAsync(model.RoleName);
+        var role = await roleManager.FindByNameAsync(effectiveRoleName);
         if (role is null)
         {
             return ServiceResult<UserViewModel>.Failure("The selected role has not been seeded.");
@@ -121,7 +130,7 @@ public sealed class UserService(
         }
 
         await auditLogService.RecordAsync("Created", nameof(ApplicationUser), user.Id, user.Email, cancellationToken);
-        await auditLogService.RecordAsync("RoleAssigned", nameof(ApplicationUser), user.Id, model.RoleName, cancellationToken);
+        await auditLogService.RecordAsync("RoleAssigned", nameof(ApplicationUser), user.Id, effectiveRoleName, cancellationToken);
         if (user.DepartmentId is not null)
         {
             await auditLogService.RecordAsync("DepartmentAssigned", nameof(ApplicationUser), user.Id, $"DepartmentId={user.DepartmentId}", cancellationToken);
@@ -149,9 +158,23 @@ public sealed class UserService(
             return ServiceResult<UserViewModel>.Failure("User not found.");
         }
 
+        model.Rank = UserRank.Normalize(model.Rank) ?? string.Empty;
+        if (!UserRank.IsAllowed(model.Rank))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.Rank), "اختر رتبة من القائمة المحددة.");
+        }
+
+        var effectiveRoleName = ResolveEffectiveRoleName(model.Rank, model.RoleName);
+        if (string.IsNullOrWhiteSpace(effectiveRoleName) || !RolePermissions.All.ContainsKey(effectiveRoleName))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.RoleName), "اختر دورًا صحيحًا من القائمة المتاحة.");
+        }
+
+        model.RoleName = effectiveRoleName;
+
         var roles = await userManager.GetRolesAsync(user);
         var existingDepartmentId = user.DepartmentId;
-        if (roles.Any(RequiresDepartment) && model.DepartmentId is null)
+        if (RequiresDepartment(effectiveRoleName) && model.DepartmentId is null)
         {
             return ServiceResult<UserViewModel>.ValidationFailure(nameof(model.DepartmentId), "A department is required for this role.");
         }
@@ -176,11 +199,28 @@ public sealed class UserService(
             return IdentityFailure<UserViewModel>(updateResult, nameof(model.FullName), nameof(model.FullName));
         }
 
+        if (roles.Count > 0)
+        {
+            var removeResult = await userManager.RemoveFromRolesAsync(user, roles);
+            if (!removeResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return IdentityFailure<UserViewModel>(removeResult, nameof(model.RoleName), nameof(model.RoleName));
+            }
+        }
+
+        var addResult = await userManager.AddToRoleAsync(user, effectiveRoleName);
+        if (!addResult.Succeeded)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return IdentityFailure<UserViewModel>(addResult, nameof(model.RoleName), nameof(model.RoleName));
+        }
+
         await auditLogService.RecordAsync(
             "Updated",
             nameof(ApplicationUser),
             user.Id,
-            $"Active={user.IsActive}; DepartmentId={user.DepartmentId}",
+            $"Active={user.IsActive}; DepartmentId={user.DepartmentId}; Role={effectiveRoleName}",
             cancellationToken);
         if (existingDepartmentId != user.DepartmentId)
         {
@@ -201,33 +241,51 @@ public sealed class UserService(
             return ServiceResult<UserViewModel>.Failure("Permission denied to assign roles.");
         }
 
-        if (!RolePermissions.All.ContainsKey(roleName))
-        {
-            return ServiceResult<UserViewModel>.ValidationFailure(nameof(roleName), "Choose one of the four predefined roles.");
-        }
-
         var user = await dbContext.Users.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (user is null)
         {
             return ServiceResult<UserViewModel>.Failure("User not found.");
         }
 
+        if (string.IsNullOrWhiteSpace(roleName))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(roleName), "اختر دورًا صحيحًا من القائمة المتاحة.");
+        }
+
+        var effectiveRoleName = ResolveEffectiveRoleName(user.Rank, roleName);
+        if (string.IsNullOrWhiteSpace(effectiveRoleName) || !RolePermissions.All.ContainsKey(effectiveRoleName))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(roleName), "Choose one of the four predefined roles.");
+        }
+
+        if (UserRank.IsCivilian(user.Rank) && !string.Equals(effectiveRoleName, RolePermissions.CivilianEmployee, StringComparison.Ordinal))
+        {
+            return ServiceResult<UserViewModel>.ValidationFailure(nameof(roleName), "يُفرض الدور المدني للرتبة موظف.");
+        }
+
         var departmentResult = await GetActiveDepartmentAsync(user.DepartmentId, cancellationToken);
-        if (RequiresDepartment(roleName) && departmentResult.Data is null)
+        if (RequiresDepartment(effectiveRoleName) && departmentResult.Data is null)
         {
             return ServiceResult<UserViewModel>.ValidationFailure(nameof(user.DepartmentId), "An active department is required for this role.");
         }
 
-        var newRole = await roleManager.FindByNameAsync(roleName);
+        var newRole = await roleManager.FindByNameAsync(effectiveRoleName);
         if (newRole is null)
         {
             return ServiceResult<UserViewModel>.Failure("The selected role has not been seeded.");
         }
 
         var existingRoles = await userManager.GetRolesAsync(user);
-        if (existingRoles.Count == 1 && string.Equals(existingRoles[0], roleName, StringComparison.Ordinal))
+        if (existingRoles.Count == 1 && string.Equals(existingRoles[0], effectiveRoleName, StringComparison.Ordinal))
         {
             return ServiceResult<UserViewModel>.Success(await ToViewModelAsync(user));
+        }
+
+        if (existingRoles.Contains(RolePermissions.SystemAdmin, StringComparer.Ordinal) &&
+            !string.Equals(effectiveRoleName, RolePermissions.SystemAdmin, StringComparison.Ordinal) &&
+            await IsLastActiveSystemAdministratorAsync(user, cancellationToken))
+        {
+            return ServiceResult<UserViewModel>.Failure("لا يمكن تغيير دور آخر حساب نشط للمدير العام للنظام.");
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -244,11 +302,21 @@ public sealed class UserService(
         var addResult = await userManager.AddToRoleAsync(user, newRole.Name!);
         if (!addResult.Succeeded)
         {
+            if (existingRoles.Count > 0)
+            {
+                var rollbackResult = await userManager.AddToRolesAsync(user, existingRoles);
+                if (!rollbackResult.Succeeded)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return ServiceResult<UserViewModel>.Failure("Role change failed and the original role assignment could not be restored.");
+                }
+            }
+
             await transaction.RollbackAsync(cancellationToken);
             return IdentityFailure<UserViewModel>(addResult, nameof(roleName), nameof(roleName));
         }
 
-        await auditLogService.RecordAsync("RoleAssigned", nameof(ApplicationUser), user.Id, roleName, cancellationToken);
+        await auditLogService.RecordAsync("RoleAssigned", nameof(ApplicationUser), user.Id, effectiveRoleName, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ServiceResult<UserViewModel>.Success(await ToViewModelAsync(user));
     }
@@ -299,6 +367,16 @@ public sealed class UserService(
             return ServiceResult<bool>.Failure("User not found.");
         }
 
+        if (user.Id == currentUser.UserId && !isActive)
+        {
+            return ServiceResult<bool>.Failure("لا يمكنك إيقاف حسابك الشخصي.");
+        }
+
+        if (!isActive && await IsLastActiveSystemAdministratorAsync(user, cancellationToken))
+        {
+            return ServiceResult<bool>.Failure("لا يمكن إيقاف آخر حساب نشط للمدير العام للنظام.");
+        }
+
         if (user.IsActive == isActive)
         {
             return ServiceResult<bool>.Success(true);
@@ -306,16 +384,52 @@ public sealed class UserService(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         user.IsActive = isActive;
-        var result = await userManager.UpdateAsync(user);
-        if (!result.Succeeded)
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
         {
             await transaction.RollbackAsync(cancellationToken);
-            return IdentityFailure<bool>(result, nameof(user.Email), nameof(user.Email));
+            return IdentityFailure<bool>(updateResult, nameof(user.Email), nameof(user.Email));
+        }
+
+        if (isActive)
+        {
+            var unlockResult = await userManager.SetLockoutEndDateAsync(user, null);
+            if (!unlockResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return IdentityFailure<bool>(unlockResult, nameof(user.Email), nameof(user.Email));
+            }
+
+            var resetAccessFailedCountResult = await userManager.ResetAccessFailedCountAsync(user);
+            if (!resetAccessFailedCountResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return IdentityFailure<bool>(resetAccessFailedCountResult, nameof(user.Email), nameof(user.Email));
+            }
         }
 
         await auditLogService.RecordAsync(isActive ? "Activated" : "Deactivated", nameof(ApplicationUser), user.Id, user.Email, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return ServiceResult<bool>.Success(true);
+
+        var persistedUser = await userManager.FindByIdAsync(id);
+        return persistedUser is not null && persistedUser.IsActive == isActive
+            ? ServiceResult<bool>.Success(true)
+            : ServiceResult<bool>.Failure("The account status change was not persisted.");
+    }
+
+    private async Task<bool> IsLastActiveSystemAdministratorAsync(ApplicationUser targetUser, CancellationToken cancellationToken)
+    {
+        if (!await userManager.IsInRoleAsync(targetUser, RolePermissions.SystemAdmin))
+        {
+            return false;
+        }
+
+        var activeAdministrators = await userManager.GetUsersInRoleAsync(RolePermissions.SystemAdmin);
+        var otherActiveAdministrators = activeAdministrators
+            .Where(user => user.Id != targetUser.Id && user.IsActive)
+            .ToList();
+
+        return otherActiveAdministrators.Count == 0;
     }
 
     private async Task<ServiceResult<IncidentManagementSystem.Models.Entities.Department?>> GetActiveDepartmentAsync(
@@ -344,6 +458,18 @@ public sealed class UserService(
 
     private static bool RequiresDepartment(string roleName) =>
         roleName is RolePermissions.User or RolePermissions.CivilianEmployee;
+
+    private static string ResolveEffectiveRoleName(string? rank, string? submittedRoleName)
+    {
+        if (UserRank.IsCivilian(rank))
+        {
+            return RolePermissions.CivilianEmployee;
+        }
+
+        return string.IsNullOrWhiteSpace(submittedRoleName)
+            ? string.Empty
+            : submittedRoleName.Trim();
+    }
 
     private static string? NormalizeRank(string? rank) =>
         string.IsNullOrWhiteSpace(rank) ? null : rank.Trim();

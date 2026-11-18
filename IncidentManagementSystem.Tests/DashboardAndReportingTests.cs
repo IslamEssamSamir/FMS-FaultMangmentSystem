@@ -4,6 +4,7 @@ using IncidentManagementSystem.Models.Entities;
 using IncidentManagementSystem.Models.Enums;
 using IncidentManagementSystem.Models.Identity;
 using IncidentManagementSystem.Services.Implementations;
+using IncidentManagementSystem.Services;
 using IncidentManagementSystem.Services.Interfaces;
 using IncidentManagementSystem.ViewModels;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,316 @@ namespace IncidentManagementSystem.Tests;
 
 public sealed class DashboardAndReportingTests
 {
+    [Fact]
+    public async Task DashboardStatistics_ApplyDateFilterAndCriticalAlertPrecedence()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var todayUtc = DateTime.SpecifyKind(today.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Local).ToUniversalTime();
+        var criticalSettled = CreateIncident(10, "INC-010", IncidentStatus.Resolved, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, todayUtc);
+        criticalSettled.Priority = IncidentPriority.Critical;
+        var criticalClosed = CreateIncident(11, "INC-011", IncidentStatus.Closed, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, todayUtc.AddMinutes(1));
+        criticalClosed.Priority = IncidentPriority.Critical;
+        var nonCriticalOpen = CreateIncident(12, "INC-012", IncidentStatus.Open, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, todayUtc.AddMinutes(2));
+        nonCriticalOpen.Priority = IncidentPriority.Urgent;
+        var additional = new[] { criticalSettled, criticalClosed, nonCriticalOpen };
+        dbContext.Incidents.AddRange(additional);
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateDashboardService(dbContext, seeded.SupervisorContext)
+            .GetCurrentUserDashboardAsync(DashboardDateFilter.Today);
+
+        Assert.True(result.Succeeded);
+        var stats = result.Data!.Supervisor!;
+        Assert.Equal(3, stats.TotalIncidents);
+        Assert.Equal(0, stats.IncomingIncidents);
+        Assert.Equal(1, stats.OpenIncidents);
+        Assert.Equal(1, stats.SettledIncidents);
+        Assert.Equal(1, stats.ClosedIncidentsCount);
+        Assert.Equal(2, stats.RemainingNotClosed);
+        Assert.Equal(1, stats.UnresolvedCriticalIncidents);
+        Assert.Equal(DashboardAlertLevel.Critical, stats.AlertLevel);
+
+        additional[0].Status = IncidentStatus.Closed;
+        await dbContext.SaveChangesAsync();
+        var warning = await CreateDashboardService(dbContext, seeded.SupervisorContext)
+            .GetCurrentUserDashboardAsync(DashboardDateFilter.Today);
+        Assert.Equal(DashboardAlertLevel.Warning, warning.Data!.Supervisor!.AlertLevel);
+        Assert.Equal(0, warning.Data.Supervisor.UnresolvedCriticalIncidents);
+
+        additional[2].Status = IncidentStatus.Closed;
+        await dbContext.SaveChangesAsync();
+        var safe = await CreateDashboardService(dbContext, seeded.SupervisorContext)
+            .GetCurrentUserDashboardAsync(DashboardDateFilter.Today);
+        Assert.Equal(DashboardAlertLevel.Safe, safe.Data!.Supervisor!.AlertLevel);
+        Assert.Equal(0, safe.Data.Supervisor.RemainingNotClosed);
+    }
+
+    [Fact]
+    public async Task DashboardDutyOfficers_ShowAllDepartmentsAndMissingAssignments()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var localNow = DateTime.Now;
+        var period = GetTestDutyPeriod(localNow);
+        var shiftDate = DateOnly.FromDateTime(period.Start);
+        var definition = new ShiftDefinition
+        {
+            Name = "Dashboard period",
+            StartTime = TimeOnly.FromDateTime(period.Start),
+            EndTime = TimeOnly.FromDateTime(period.End),
+            IsOvernight = true,
+            IsActive = true
+        };
+        dbContext.ShiftDefinitions.Add(definition);
+        var schedule = new WeeklyShiftSchedule
+        {
+            WeekStartDate = ShiftScheduleRules.GetWeekStart(shiftDate),
+            CreatedByUserId = seeded.Admin.Id
+        };
+        dbContext.WeeklyShiftSchedules.Add(schedule);
+        await dbContext.SaveChangesAsync();
+        dbContext.ShiftAssignments.Add(new ShiftAssignment
+        {
+            WeeklyShiftScheduleId = schedule.Id,
+            DepartmentId = seeded.DepartmentA.Id,
+            UserId = seeded.OfficerA.Id,
+            ShiftDefinitionId = definition.Id,
+            ShiftDate = shiftDate
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateDashboardService(dbContext, seeded.SupervisorContext).GetCurrentUserDashboardAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, result.Data!.CurrentDutyOfficers.Count);
+        Assert.Equal(2, result.Data.PreviousDutyOfficers.Count);
+        Assert.Contains(result.Data.CurrentDutyOfficers, item => item.DepartmentId == seeded.DepartmentA.Id && item.OfficerName == seeded.OfficerA.FullName);
+        Assert.Contains(result.Data.CurrentDutyOfficers, item => item.DepartmentId == seeded.DepartmentB.Id && !item.HasAssignment);
+        Assert.All(result.Data.CurrentDutyOfficers, item => Assert.Equal(TimeSpan.FromHours(24), item.EndAt - item.StartAt));
+    }
+
+    [Theory]
+    [InlineData("2026-11-07T00:00:00", "2026-11-07T15:00:00", "2026-11-08T15:00:00")]
+    [InlineData("2026-11-12T16:00:00", "2026-11-12T15:00:00", "2026-11-13T10:00:00")]
+    [InlineData("2026-11-13T09:59:59", "2026-11-12T15:00:00", "2026-11-13T10:00:00")]
+    [InlineData("2026-11-13T10:00:00", "2026-11-13T10:00:00", "2026-11-14T10:00:00")]
+    [InlineData("2026-11-14T09:59:59", "2026-11-13T10:00:00", "2026-11-14T10:00:00")]
+    [InlineData("2026-11-14T10:00:00", "2026-11-14T10:00:00", "2026-11-14T15:00:00")]
+    [InlineData("2026-11-14T15:00:00", "2026-11-14T15:00:00", "2026-11-15T15:00:00")]
+    public void DashboardDutyPeriodRules_UseSaturdayAndFridayTransitions(string nowText, string startText, string endText)
+    {
+        var (start, end) = DashboardDutyPeriodRules.GetCurrentPeriod(DateTime.Parse(nowText));
+        Assert.Equal(DateTime.Parse(startText), start);
+        Assert.Equal(DateTime.Parse(endText), end);
+        Assert.Equal((start, end), DashboardDutyPeriodRules.GetPreviousPeriod(end));
+    }
+
+    [Fact]
+    public async Task DashboardDutyOfficers_UseActualShiftIntervalsForCurrentAndPreviousAssignments()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var now = DateTime.Now;
+        var currentStart = now.AddHours(-2);
+        var currentEnd = now.AddHours(2);
+        var previousStart = currentStart.AddHours(-8);
+        var previousEnd = currentStart;
+        await AddDashboardShiftAsync(dbContext, seeded.DepartmentA, seeded.OfficerA, previousStart, previousEnd, "Previous assignment");
+        await AddDashboardShiftAsync(dbContext, seeded.DepartmentA, seeded.OfficerB, currentStart, currentEnd, "Current assignment");
+
+        var result = await CreateDashboardService(dbContext, seeded.SupervisorContext).GetCurrentUserDashboardAsync();
+
+        Assert.True(result.Succeeded);
+        var current = Assert.Single(result.Data!.CurrentDutyOfficers, item => item.DepartmentId == seeded.DepartmentA.Id);
+        Assert.Equal(seeded.OfficerB.FullName, current.OfficerName);
+        Assert.Equal(currentStart, current.StartAt);
+        Assert.Equal(currentEnd, current.EndAt);
+        var previous = Assert.Single(result.Data.PreviousDutyOfficers, item => item.DepartmentId == seeded.DepartmentA.Id);
+        Assert.Equal(seeded.OfficerA.FullName, previous.OfficerName);
+        Assert.Equal(previousStart, previous.StartAt);
+        Assert.Equal(previousEnd, previous.EndAt);
+        Assert.Contains(result.Data.CurrentDutyOfficers, item => item.DepartmentId == seeded.DepartmentB.Id && !item.HasAssignment);
+    }
+
+    [Fact]
+    public async Task DashboardDataTable_ReportsScopedFilteredCountsAndStableCreatedAtOrdering()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var duplicateTimestamp = new DateTime(2026, 1, 2, 8, 0, 0, DateTimeKind.Utc);
+        dbContext.Incidents.AddRange(
+            CreateIncident(10, "INC-010", IncidentStatus.Open, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, duplicateTimestamp),
+            CreateIncident(11, "INC-011", IncidentStatus.Open, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, duplicateTimestamp));
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDashboardService(dbContext, seeded.DepartmentContext);
+        var page = await service.GetIncidentDataTableAsync(new DashboardDataTableRequest
+        {
+            Draw = 9,
+            DateFilter = DashboardDateFilter.All,
+            Search = "INC-01",
+            Start = 1,
+            Length = 2
+        });
+        Assert.True(page.Succeeded);
+        Assert.Equal(9, page.Data!.Draw);
+        Assert.Equal(5, page.Data.RecordsTotal);
+        Assert.Equal(5, page.Data.RecordsFiltered);
+        Assert.Equal(new[] { 10, 2 }, page.Data.Data.Select(item => item.Id));
+
+        var searched = await service.GetIncidentDataTableAsync(new DashboardDataTableRequest
+        {
+            DateFilter = DashboardDateFilter.All,
+            Search = "INC-010",
+            Length = 25
+        });
+        Assert.Equal(5, searched.Data!.RecordsTotal);
+        Assert.Equal(1, searched.Data.RecordsFiltered);
+        Assert.Equal(10, Assert.Single(searched.Data.Data).Id);
+    }
+
+    [Fact]
+    public async Task DashboardDataTable_UsesLatestActionFromBothActionTables()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var incident = await dbContext.Incidents.SingleAsync(item => item.Id == 1);
+        dbContext.IncidentActions.Add(new IncidentAction
+        {
+            IncidentId = incident.Id,
+            DepartmentId = seeded.DepartmentA.Id,
+            UserId = seeded.OfficerA.Id,
+            ActionDescription = "Earlier main action",
+            ActionDate = DateTime.UtcNow.AddMinutes(-2)
+        });
+        var assignment = new IncidentDepartmentAssignment
+        {
+            IncidentId = incident.Id,
+            DepartmentId = seeded.DepartmentA.Id,
+            AssignedByUserId = seeded.OfficerA.Id,
+            RequiredTask = "Inspect"
+        };
+        dbContext.IncidentDepartmentAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+        dbContext.IncidentDepartmentActions.Add(new IncidentDepartmentAction
+        {
+            IncidentId = incident.Id,
+            AssignmentId = assignment.Id,
+            UserId = seeded.OfficerA.Id,
+            ActionDescription = "Latest department action",
+            ActionDate = DateTime.UtcNow.AddMinutes(-1)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var table = await CreateDashboardService(dbContext, seeded.DepartmentContext)
+            .GetIncidentDataTableAsync(new DashboardDataTableRequest { DateFilter = DashboardDateFilter.All, Search = "INC-001" });
+
+        var row = Assert.Single(table.Data!.Data);
+        Assert.Equal("Latest department action", row.LastAction);
+        Assert.NotNull(row.LastActionAt);
+    }
+
+    [Fact]
+    public async Task DashboardAuthorization_RequiresRoleAndPermissionAndScopesData()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var invalidSupervisor = new TestCurrentUserContext(seeded.Supervisor.Id, [], [RolePermissions.SystemSupervisor]);
+        var invalidDepartmentOfficer = new TestCurrentUserContext(seeded.OfficerA.Id, [Permissions.ViewAllIncidents], [RolePermissions.User]);
+        Assert.False((await CreateDashboardService(dbContext, invalidSupervisor).GetCurrentUserDashboardAsync()).Succeeded);
+        Assert.False((await CreateDashboardService(dbContext, invalidDepartmentOfficer).GetIncidentDataTableAsync(new DashboardDataTableRequest())).Succeeded);
+
+        var admin = await CreateDashboardService(dbContext, seeded.AdminContext).GetCurrentUserDashboardAsync();
+        Assert.True(admin.Succeeded);
+        Assert.Equal(DashboardKind.SystemAdministration, admin.Data!.Kind);
+        var supervisorTable = await CreateDashboardService(dbContext, seeded.SupervisorContext)
+            .GetIncidentDataTableAsync(new DashboardDataTableRequest { DateFilter = DashboardDateFilter.All });
+        Assert.Equal(4, supervisorTable.Data!.RecordsTotal);
+        var departmentTable = await CreateDashboardService(dbContext, seeded.DepartmentContext)
+            .GetIncidentDataTableAsync(new DashboardDataTableRequest { DateFilter = DashboardDateFilter.All });
+        Assert.Equal(3, departmentTable.Data!.RecordsTotal);
+        Assert.DoesNotContain(departmentTable.Data.Data, row => row.Id == 4);
+    }
+
+    [Fact]
+    public async Task DashboardSelectedDateFilter_AppliesToStatisticsAlertAndTable()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var todayUtc = DateTime.SpecifyKind(today.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Local).ToUniversalTime();
+        var recent = CreateIncident(20, "INC-020", IncidentStatus.Open, seeded.DepartmentA, seeded.DepartmentA, seeded.OfficerA, todayUtc);
+        recent.Priority = IncidentPriority.Critical;
+        dbContext.Incidents.Add(recent);
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateDashboardService(dbContext, seeded.SupervisorContext).GetCurrentUserDashboardAsync(DashboardDateFilter.Today);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, result.Data!.Supervisor!.TotalIncidents);
+        Assert.Equal(DashboardAlertLevel.Critical, result.Data.Supervisor.AlertLevel);
+        Assert.Equal(1, result.Data.Supervisor.IncidentRecordsTotal);
+        Assert.Equal(20, Assert.Single(result.Data.Supervisor.IncidentRows).Id);
+    }
+
+    [Fact]
+    public async Task DashboardDataTable_IsScopedAndNewestFirstWhenDateFilterIsAll()
+    {
+        await using var dbContext = await CreateDbContextAsync();
+        var seeded = await SeedAsync(dbContext);
+        var service = CreateDashboardService(dbContext, seeded.DepartmentContext);
+
+        var table = await service.GetIncidentDataTableAsync(new DashboardDataTableRequest
+        {
+            DateFilter = DashboardDateFilter.All,
+            Length = 100
+        });
+
+        Assert.True(table.Succeeded);
+        Assert.Equal(3, table.Data!.RecordsTotal);
+        Assert.All(table.Data.Data, row => Assert.Equal(seeded.DepartmentA.Name, row.DepartmentName));
+        Assert.True(table.Data.Data.Zip(table.Data.Data.Skip(1), (left, right) => left.CreatedAt >= right.CreatedAt).All(item => item));
+    }
+
+    [Theory]
+    [InlineData(DashboardDateFilter.Today)]
+    [InlineData(DashboardDateFilter.Week)]
+    [InlineData(DashboardDateFilter.Month)]
+    [InlineData(DashboardDateFilter.Year)]
+    [InlineData(DashboardDateFilter.All)]
+    public void DashboardDateFilterRules_ReturnExpectedLocalDateBoundaries(DashboardDateFilter filter)
+    {
+        var now = new DateTime(2026, 1, 4, 12, 0, 0, DateTimeKind.Local); // Sunday
+        var (startUtc, endUtc) = DashboardDateFilterRules.GetUtcRange(filter, now);
+        if (filter == DashboardDateFilter.All)
+        {
+            Assert.Null(startUtc);
+            Assert.Null(endUtc);
+            return;
+        }
+
+        var startLocal = startUtc!.Value.ToLocalTime();
+        var endLocal = endUtc!.Value.ToLocalTime();
+        Assert.Equal(filter switch
+        {
+            DashboardDateFilter.Today => new DateTime(2026, 1, 4),
+            DashboardDateFilter.Week => new DateTime(2026, 1, 3),
+            DashboardDateFilter.Month => new DateTime(2026, 1, 1),
+            DashboardDateFilter.Year => new DateTime(2026, 1, 1),
+            _ => throw new ArgumentOutOfRangeException()
+        }, startLocal);
+        Assert.Equal(filter switch
+        {
+            DashboardDateFilter.Today => new DateTime(2026, 1, 5),
+            DashboardDateFilter.Week => new DateTime(2026, 1, 9),
+            DashboardDateFilter.Month => new DateTime(2026, 2, 1),
+            DashboardDateFilter.Year => new DateTime(2027, 1, 1),
+            _ => throw new ArgumentOutOfRangeException()
+        }, endLocal);
+    }
+
     [Fact]
     public async Task DashboardMetrics_AreScopedToEachRoleAndCivilianHasNoDashboard()
     {
@@ -30,7 +341,7 @@ public sealed class DashboardAndReportingTests
         Assert.Equal(1, administration.Data.Administration.WeeklySchedules);
 
         var supervisor = await CreateDashboardService(dbContext, seeded.SupervisorContext)
-            .GetCurrentUserDashboardAsync();
+            .GetCurrentUserDashboardAsync(DashboardDateFilter.All);
         Assert.True(supervisor.Succeeded);
         Assert.Equal(4, supervisor.Data!.Supervisor!.TotalIncomingIncidents);
         Assert.Equal(1, supervisor.Data.Supervisor.IncomingIncidentsAwaitingReview);
@@ -41,7 +352,7 @@ public sealed class DashboardAndReportingTests
         Assert.Single(supervisor.Data.Supervisor.RecentTransfers);
 
         var department = await CreateDashboardService(dbContext, seeded.DepartmentContext)
-            .GetCurrentUserDashboardAsync();
+            .GetCurrentUserDashboardAsync(DashboardDateFilter.All);
         Assert.True(department.Succeeded);
         Assert.Equal("القسم أ", department.Data!.DepartmentOfficer!.DepartmentName);
         Assert.Equal(1, department.Data.DepartmentOfficer.IncomingIncidents);
@@ -250,6 +561,50 @@ public sealed class DashboardAndReportingTests
             CivilianContext(civilian.Id));
     }
 
+    private static (DateTime Start, DateTime End) GetTestDutyPeriod(DateTime now)
+        => DashboardDutyPeriodRules.GetCurrentPeriod(now);
+
+    private static async Task AddDashboardShiftAsync(
+        ApplicationDbContext dbContext,
+        Department department,
+        ApplicationUser officer,
+        DateTime start,
+        DateTime end,
+        string shiftName)
+    {
+        var shiftDate = DateOnly.FromDateTime(start);
+        var schedule = await dbContext.WeeklyShiftSchedules.SingleOrDefaultAsync(item => item.WeekStartDate == ShiftScheduleRules.GetWeekStart(shiftDate));
+        if (schedule is null)
+        {
+            schedule = new WeeklyShiftSchedule
+            {
+                WeekStartDate = ShiftScheduleRules.GetWeekStart(shiftDate),
+                CreatedByUserId = "admin"
+            };
+            dbContext.WeeklyShiftSchedules.Add(schedule);
+            await dbContext.SaveChangesAsync();
+        }
+        var definition = new ShiftDefinition
+        {
+            Name = shiftName,
+            StartTime = TimeOnly.FromDateTime(start),
+            EndTime = TimeOnly.FromDateTime(end),
+            IsOvernight = end.Date > start.Date,
+            IsActive = true
+        };
+        dbContext.ShiftDefinitions.Add(definition);
+        await dbContext.SaveChangesAsync();
+        dbContext.ShiftAssignments.Add(new ShiftAssignment
+        {
+            WeeklyShiftScheduleId = schedule.Id,
+            DepartmentId = department.Id,
+            UserId = officer.Id,
+            ShiftDefinitionId = definition.Id,
+            ShiftDate = shiftDate
+        });
+        await dbContext.SaveChangesAsync();
+    }
+
     private static Incident CreateIncident(
         int id,
         string number,
@@ -277,7 +632,7 @@ public sealed class DashboardAndReportingTests
         new(dbContext, user);
 
     private static IncidentService CreateIncidentService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
-        new(dbContext, null!, user, null!, new DutyOfficerSnapshotService(dbContext));
+        new(dbContext, null!, user, null!, new DutyOfficerSnapshotService(dbContext), new TestIncidentAttachmentStorage());
 
     private static IncidentReportService CreateReportService(ApplicationDbContext dbContext, ICurrentUserContext user) =>
         new(dbContext, user);

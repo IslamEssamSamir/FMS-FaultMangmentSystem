@@ -5,6 +5,26 @@ namespace IncidentManagementSystem.ViewModels;
 
 public class IncidentCreateViewModel
 {
+    [Required(ErrorMessage = "أولوية البلاغ مطلوبة.")]
+    public IncidentPriority? Priority { get; set; }
+
+    [StringLength(200, ErrorMessage = "يجب ألا يتجاوز اسم الجهة المبلغة 200 حرف.")]
+    public string? ReportingEntity { get; set; }
+
+    [StringLength(200, ErrorMessage = "يجب ألا يتجاوز اسم المبلّغ 200 حرف.")]
+    public string? ReporterName { get; set; }
+
+    [StringLength(50, ErrorMessage = "يجب ألا يتجاوز رقم الهاتف 50 حرفًا.")]
+    public string? ReporterPhone { get; set; }
+
+    [Required(ErrorMessage = "وسيلة الإخطار مطلوبة.")]
+    public NotificationMethod? NotificationMethod { get; set; } = IncidentManagementSystem.Models.Enums.NotificationMethod.Phone;
+
+    [StringLength(500, ErrorMessage = "يجب ألا يتجاوز توضيح وسيلة الإخطار 500 حرف.")]
+    public string? OtherNotificationMethodDescription { get; set; }
+
+    public IFormFile? OfficialLetterAttachment { get; set; }
+
     [Required(ErrorMessage = "عنوان البلاغ مطلوب."), StringLength(200, ErrorMessage = "يجب ألا يتجاوز عنوان البلاغ 200 حرف.")]
     public string Title { get; set; } = string.Empty;
 
@@ -13,6 +33,31 @@ public class IncidentCreateViewModel
 
     [Range(1, int.MaxValue, ErrorMessage = "اختر قسمًا مستقبِلًا صالحًا.")]
     public int? InitialReceivingDepartmentId { get; set; }
+}
+
+public class IncidentEditViewModel
+{
+    [Required(ErrorMessage = "أولوية البلاغ مطلوبة.")]
+    public IncidentPriority? Priority { get; set; }
+
+    [StringLength(200, ErrorMessage = "يجب ألا يتجاوز اسم الجهة المبلغة 200 حرف.")]
+    public string? ReportingEntity { get; set; }
+
+    [StringLength(200, ErrorMessage = "يجب ألا يتجاوز اسم المبلّغ 200 حرف.")]
+    public string? ReporterName { get; set; }
+
+    [StringLength(50, ErrorMessage = "يجب ألا يتجاوز رقم الهاتف 50 حرفًا.")]
+    public string? ReporterPhone { get; set; }
+
+    [Required(ErrorMessage = "وسيلة الإخطار مطلوبة.")]
+    public NotificationMethod? NotificationMethod { get; set; } = IncidentManagementSystem.Models.Enums.NotificationMethod.Phone;
+
+    [StringLength(500, ErrorMessage = "يجب ألا يتجاوز توضيح وسيلة الإخطار 500 حرف.")]
+    public string? OtherNotificationMethodDescription { get; set; }
+
+    public IFormFile? OfficialLetterAttachment { get; set; }
+
+    public bool HasOfficialLetterAttachment { get; set; }
 }
 
 public class IncidentActionCreateViewModel
@@ -36,6 +81,10 @@ public class IncidentListItemViewModel
     public string IncidentNumber { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public IncidentStatus Status { get; set; }
+    public IncidentPriority Priority { get; set; }
+    public NotificationMethod NotificationMethod { get; set; }
+    public string? OtherNotificationMethodDescription { get; set; }
+    public bool HasOfficialLetterAttachment { get; set; }
     public string CurrentDepartmentName { get; set; } = string.Empty;
     public string CurrentDepartmentColorClass { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
@@ -62,6 +111,9 @@ public class IncidentDetailsViewModel : IncidentListItemViewModel
     public int CurrentDepartmentId { get; set; }
     public string Description { get; set; } = string.Empty;
     public string ReportingDepartmentName { get; set; } = string.Empty;
+    public string? ReportingEntity { get; set; }
+    public string? ReporterName { get; set; }
+    public string? ReporterPhone { get; set; }
     public string InitialReceivingDepartmentName { get; set; } = string.Empty;
     public string? CurrentResponsibleUserName { get; set; }
     public string? ResolvedByUserName { get; set; }

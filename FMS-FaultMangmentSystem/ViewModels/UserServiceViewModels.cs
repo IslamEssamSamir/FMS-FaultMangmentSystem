@@ -7,8 +7,9 @@ public class UserCreateViewModel
     [Required, StringLength(200)]
     public string FullName { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "يجب اختيار رتبة صالحة.")]
     [StringLength(50)]
-    public string? Rank { get; set; }
+    public string Rank { get; set; } = string.Empty;
 
     [Required, EmailAddress, StringLength(256)]
     public string Email { get; set; } = string.Empty;
@@ -27,10 +28,14 @@ public class UserUpdateViewModel
     [Required, StringLength(200)]
     public string FullName { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "يجب اختيار رتبة صالحة.")]
     [StringLength(50)]
-    public string? Rank { get; set; }
+    public string Rank { get; set; } = string.Empty;
 
     public int? DepartmentId { get; set; }
+
+    [Required]
+    public string RoleName { get; set; } = string.Empty;
 }
 
 public class UserViewModel

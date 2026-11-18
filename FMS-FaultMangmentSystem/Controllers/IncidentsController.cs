@@ -47,6 +47,7 @@ public sealed class IncidentsController(
         [FromQuery(Name = "incidentNumber")] string? incidentNumber = null,
         [FromQuery(Name = "title")] string? title = null,
         [FromQuery(Name = "status")] string? status = null,
+        [FromQuery(Name = "priority")] string? priority = null,
         [FromQuery(Name = "departmentId")] int? departmentId = null,
         [FromQuery(Name = "reportingDepartmentId")] int? reportingDepartmentId = null,
         [FromQuery(Name = "currentDepartmentId")] int? currentDepartmentId = null,
@@ -66,6 +67,16 @@ public sealed class IncidentsController(
             statusFilter = parsedStatus;
         }
 
+        IncidentPriority? priorityFilter = null;
+        if (!string.IsNullOrWhiteSpace(priority))
+        {
+            if (!Enum.TryParse<IncidentPriority>(priority, true, out var parsedPriority) || !Enum.IsDefined(parsedPriority))
+            {
+                return BadRequest();
+            }
+            priorityFilter = parsedPriority;
+        }
+
         if (!ModelState.IsValid) return BadRequest();
         var result = await incidentService.GetDataTableAsync(new IncidentDataTablesRequest
         {
@@ -76,6 +87,7 @@ public sealed class IncidentsController(
             IncidentNumber = incidentNumber,
             Title = title,
             Status = statusFilter,
+            Priority = priorityFilter,
             DepartmentId = departmentId,
             ReportingDepartmentId = reportingDepartmentId,
             CurrentDepartmentId = currentDepartmentId,
@@ -111,7 +123,7 @@ public sealed class IncidentsController(
         return View(new IncidentCreateViewModel());
     }
 
-    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.SubmitComplaints)]
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.SubmitComplaints), RequestSizeLimit(6 * 1024 * 1024)]
     public async Task<IActionResult> Create(IncidentCreateViewModel model, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
@@ -149,6 +161,70 @@ public sealed class IncidentsController(
         }
 
         return View(await BuildDetailsPageAsync(result.Data!, cancellationToken));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
+    {
+        var result = await incidentService.GetDetailsAsync(id, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return result.ErrorMessage == "Incident not found." ? NotFound() : Forbid();
+        }
+
+        var incident = result.Data!;
+        return View(new IncidentEditViewModel
+        {
+            Priority = incident.Priority,
+            ReportingEntity = incident.ReportingEntity,
+            ReporterName = incident.ReporterName,
+            ReporterPhone = incident.ReporterPhone,
+            NotificationMethod = incident.NotificationMethod,
+            OtherNotificationMethodDescription = incident.OtherNotificationMethodDescription,
+            HasOfficialLetterAttachment = incident.HasOfficialLetterAttachment
+        });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<IActionResult> Edit(int id, IncidentEditViewModel model, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var incident = await incidentService.GetDetailsAsync(id, cancellationToken);
+            if (incident.Succeeded)
+                model.HasOfficialLetterAttachment = incident.Data!.HasOfficialLetterAttachment;
+            return View(model);
+        }
+
+        var result = await incidentService.UpdateDetailsAsync(id, model, cancellationToken);
+        if (!result.Succeeded)
+        {
+            if (result.ErrorMessage == "Incident not found.") return NotFound();
+            if (result.ErrorMessage == "Permission denied." || result.ErrorMessage == "The current account is unavailable.") return Forbid();
+            AddErrors(result);
+            var incident = await incidentService.GetDetailsAsync(id, cancellationToken);
+            if (incident.Succeeded)
+                model.HasOfficialLetterAttachment = incident.Data!.HasOfficialLetterAttachment;
+            return View(model);
+        }
+
+        TempData["SuccessMessage"] = "تم تحديث بيانات البلاغ.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> OfficialLetterAttachment(int id, CancellationToken cancellationToken)
+    {
+        var result = await incidentService.GetOfficialLetterAttachmentAsync(id, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return result.ErrorMessage == "Permission denied." || result.ErrorMessage == "The current account is unavailable."
+                ? Forbid()
+                : NotFound();
+        }
+
+        var attachment = result.Data!;
+        return File(attachment.Content, attachment.ContentType, "official-letter" + attachment.Extension, enableRangeProcessing: true);
     }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Policy = Permissions.OpenIncidents)]
@@ -616,10 +692,11 @@ public sealed class IncidentsController(
     {
         0 => "incidentNumber",
         1 => "title",
-        2 => "status",
-        3 => "reportingDepartmentName",
-        4 => "currentDepartmentName",
-        5 => "createdAt",
+        2 => "priority",
+        3 => "status",
+        4 => "reportingDepartmentName",
+        5 => "currentDepartmentName",
+        6 => "createdAt",
         _ => null
     };
 

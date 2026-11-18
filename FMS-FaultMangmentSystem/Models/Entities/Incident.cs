@@ -10,6 +10,13 @@ public class Incident
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public IncidentStatus Status { get; set; } = IncidentStatus.Incoming;
+    public IncidentPriority Priority { get; set; }
+    public string ReportingEntity { get; set; } = string.Empty;
+    public string ReporterName { get; set; } = string.Empty;
+    public string ReporterPhone { get; set; } = string.Empty;
+    public NotificationMethod NotificationMethod { get; set; }
+    public string? OtherNotificationMethodDescription { get; set; }
+    public string? OfficialLetterAttachmentKey { get; set; }
     public string ReportedByUserId { get; set; } = string.Empty;
     public int ReportingDepartmentId { get; set; }
     public int InitialReceivingDepartmentId { get; set; }

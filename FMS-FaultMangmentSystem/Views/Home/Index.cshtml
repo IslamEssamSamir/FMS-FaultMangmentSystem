@@ -49,11 +49,40 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Supervi
         </div>
     </div>
 
-    <div class="kpi-grid">
-        <section class="metric-card"><div class="metric-header"><span class="metric-label">إجمالي البلاغات الواردة</span><span class="metric-icon">◔</span></div><p class="metric-value">@Model.Supervisor.TotalIncomingIncidents</p></section>
-        <section class="metric-card"><div class="metric-header"><span class="metric-label">بإنتظار المراجعة</span><span class="metric-icon">⏱</span></div><p class="metric-value">@Model.Supervisor.IncomingIncidentsAwaitingReview</p></section>
-        <section class="metric-card"><div class="metric-header"><span class="metric-label">طلبات تحويل معلقة</span><span class="metric-icon">⇄</span></div><p class="metric-value">@Model.Supervisor.TransferRequestsAwaitingReview</p></section>
-        <section class="metric-card"><div class="metric-header"><span class="metric-label">حلول بانتظار المراجعة</span><span class="metric-icon">✓</span></div><p class="metric-value">@Model.Supervisor.ResolvedIncidentsAwaitingReview</p></section>
+    <form method="get" asp-action="Index" class="dashboard-date-filter mb-3">
+        <label for="dashboardDateFilter" class="form-label">فترة البلاغات</label>
+        <select id="dashboardDateFilter" name="filter" class="form-select" onchange="this.form.submit()">
+            <option value="Today" selected="@(Model.DateFilter == DashboardDateFilter.Today)">اليوم</option>
+            <option value="Week" selected="@(Model.DateFilter == DashboardDateFilter.Week)">الأسبوع</option>
+            <option value="Month" selected="@(Model.DateFilter == DashboardDateFilter.Month)">الشهر</option>
+            <option value="Year" selected="@(Model.DateFilter == DashboardDateFilter.Year)">السنة</option>
+            <option value="All" selected="@(Model.DateFilter == DashboardDateFilter.All)">الكل</option>
+        </select>
+    </form>
+
+    <div class="kpi-grid dashboard-stat-grid">
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">إجمالي الأعطال</span></div><p class="metric-value">@Model.Supervisor.TotalIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">الأعطال الواردة</span></div><p class="metric-value">@Model.Supervisor.IncomingIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">الأعطال المفتوحة</span></div><p class="metric-value">@Model.Supervisor.OpenIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">الأعطال المسددة</span></div><p class="metric-value">@Model.Supervisor.SettledIncidents</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">الأعطال المغلقة</span></div><p class="metric-value">@Model.Supervisor.ClosedIncidentsCount</p></section>
+        <section class="metric-card"><div class="metric-header"><span class="metric-label">متبقي ولم يغلق</span></div><p class="metric-value">@Model.Supervisor.RemainingNotClosed</p></section>
+    </div>
+
+    <div class="dashboard-alert dashboard-alert--@Model.Supervisor.AlertLevel.ToString().ToLowerInvariant()" role="status" aria-live="polite">
+        <span class="dashboard-alert-indicator" aria-hidden="true"></span>
+        @if (Model.Supervisor.AlertLevel == DashboardAlertLevel.Critical)
+        {
+            <span>تحذير: يوجد @Model.Supervisor.UnresolvedCriticalIncidents عطل حرج لم يتم إغلاقه.</span>
+        }
+        else if (Model.Supervisor.AlertLevel == DashboardAlertLevel.Warning)
+        {
+            <span>تنبيه: يوجد @Model.Supervisor.RemainingNotClosed عطلًا لم يتم إغلاقه.</span>
+        }
+        else
+        {
+            <span>آمن: جميع الأعطال مغلقة.</span>
+        }
     </div>
 
     <div class="metric-grid-2">
@@ -67,6 +96,7 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Supervi
                         {
                             <tr><td colspan="2">لا توجد بيانات متاحة.</td></tr>
                         }
+
                         else
                         {
                             @foreach (var item in Model.Supervisor.IncidentsByDepartment)
@@ -83,17 +113,17 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Supervi
             <div class="panel-header"><h2 class="panel-title">أحدث التحويلات</h2></div>
             <div class="table-panel">
                 <table>
-                    <thead><tr><th>رقم البلاغ</th><th>من</th><th>إلى</th><th>التاريخ</th></tr></thead>
+                    <thead><tr><th>رقم البلاغ</th><th>الأولوية</th><th>من</th><th>إلى</th><th>التاريخ</th></tr></thead>
                     <tbody>
                         @if (Model.Supervisor.RecentTransfers.Count == 0)
                         {
-                            <tr><td colspan="4">لا توجد تحويلات مسجلة.</td></tr>
+                            <tr><td colspan="5">لا توجد تحويلات مسجلة.</td></tr>
                         }
                         else
                         {
                             @foreach (var transfer in Model.Supervisor.RecentTransfers)
                             {
-                                <tr><td>@transfer.IncidentNumber</td><td>@transfer.FromDepartmentName</td><td>@transfer.ToDepartmentName</td><td>@transfer.TransferDate.ToLocalTime().ToString("g")</td></tr>
+                                <tr><td>@transfer.IncidentNumber</td><td><span class="badge rounded-pill @IncidentPriorityDisplay.GetBadgeClass(transfer.Priority)">@IncidentPriorityDisplay.GetLabel(transfer.Priority)</span></td><td>@transfer.FromDepartmentName</td><td>@transfer.ToDepartmentName</td><td>@transfer.TransferDate.ToLocalTime().ToString("g")</td></tr>
                             }
                         }
                     </tbody>
@@ -123,11 +153,11 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Departm
         <div class="panel-header"><h2 class="panel-title">أحدث بلاغات القسم</h2></div>
         <div class="table-panel">
             <table>
-                <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الحالة</th><th>تاريخ التسجيل</th><th></th></tr></thead>
+                <thead><tr><th>رقم البلاغ</th><th>العنوان</th><th>الأولوية</th><th>الحالة</th><th>تاريخ التسجيل</th><th></th></tr></thead>
                 <tbody>
                     @if (Model.DepartmentOfficer.RecentIncidents.Count == 0)
                     {
-                        <tr><td colspan="5">لا توجد بلاغات متاحة.</td></tr>
+                        <tr><td colspan="6">لا توجد بلاغات متاحة.</td></tr>
                     }
                     else
                     {
@@ -136,6 +166,7 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Departm
                             <tr class="@incident.Status.ToRowClass()">
                                 <td>@incident.IncidentNumber</td>
                                 <td>@incident.Title</td>
+                                <td><span class="badge rounded-pill @IncidentPriorityDisplay.GetBadgeClass(incident.Priority)">@IncidentPriorityDisplay.GetLabel(incident.Priority)</span></td>
                                 <td><partial name="_StatusBadge" model="incident.Status" /></td>
                                 <td>@incident.CreatedAt.ToLocalTime().ToString("g")</td>
                                 <td><a asp-controller="Incidents" asp-action="Details" asp-route-id="@incident.Id" class="btn btn-outline-primary btn-sm">التفاصيل</a></td>
@@ -148,9 +179,102 @@ else if (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Departm
     </section>
 }
 
+@if (Model is not null && Model.CurrentDutyOfficers.Count > 0)
+{
+    <div class="metric-grid-2 dashboard-duty-grid">
+        <section class="panel duty-panel">
+            <div class="panel-header"><h2 class="panel-title">الضباط النبطشية الحالية</h2></div>
+            <div class="duty-officer-list">
+                @foreach (var officer in Model.CurrentDutyOfficers)
+                {
+                    <article class="duty-officer-card">
+                        <h3>@officer.DepartmentName</h3>
+                        @if (officer.HasAssignment)
+                        {
+                            <p class="duty-officer-name">@officer.OfficerName</p>
+                            <p>@(string.IsNullOrWhiteSpace(officer.OfficerRank) ? "—" : officer.OfficerRank)</p>
+                        }
+                        else
+                        {
+                            <p class="duty-officer-empty">لا يوجد ضابط نبطشي محدد.</p>
+                        }
+                        <p class="duty-period">من @officer.StartAt.ToString("g") إلى @officer.EndAt.ToString("g")</p>
+                    </article>
+                }
+            </div>
+        </section>
+        <section class="panel duty-panel">
+            <div class="panel-header"><h2 class="panel-title">الضباط النبطشية أمس</h2></div>
+            <div class="duty-officer-list">
+                @foreach (var officer in Model.PreviousDutyOfficers)
+                {
+                    <article class="duty-officer-card">
+                        <h3>@officer.DepartmentName</h3>
+                        @if (officer.HasAssignment)
+                        {
+                            <p class="duty-officer-name">@officer.OfficerName</p>
+                            <p>@(string.IsNullOrWhiteSpace(officer.OfficerRank) ? "—" : officer.OfficerRank)</p>
+                        }
+                        else
+                        {
+                            <p class="duty-officer-empty">لا يوجد ضابط نبطشي محدد.</p>
+                        }
+                        <p class="duty-period">من @officer.StartAt.ToString("g") إلى @officer.EndAt.ToString("g")</p>
+                    </article>
+                }
+            </div>
+        </section>
+    </div>
+}
 
+@if (Model is not null && (Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.Supervisor || Model.Kind == IncidentManagementSystem.ViewModels.DashboardKind.DepartmentOfficer))
+{
+    <section class="panel dashboard-incidents-panel">
+        <div class="panel-header"><h2 class="panel-title">الأعطال</h2></div>
+        <div class="table-responsive">
+            <table id="dashboardIncidentsTable" class="table align-middle w-100"
+                   data-source="@Url.Action("DashboardDataTable", "Home")"
+                   data-details="@Url.Action("Details", "Incidents")"
+                   data-filter="@Model.DateFilter">
+                <thead><tr><th>رقم البلاغ</th><th>تاريخ ووقت البلاغ</th><th>عنوان العطل</th><th>القسم المختص</th><th>الأولوية</th><th>الحالة</th><th>المسؤول عن المعالجة</th><th>آخر إجراء</th></tr></thead>
+            </table>
+        </div>
+    </section>
+}
 
-
+@section Scripts {
+    <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
+    <script>
+        (() => {
+            const element = document.getElementById("dashboardIncidentsTable");
+            if (!element) return;
+            const esc = DataTable.render.text();
+            new DataTable(element, {
+                processing: true,
+                serverSide: true,
+                pageLength: 25,
+                order: [[1, "desc"]],
+                ajax: {
+                    url: element.dataset.source,
+                    data: request => { request.filter = element.dataset.filter; }
+                },
+                createdRow: (row, data) => {
+                    if (data.isCriticalUnresolved) row.classList.add("dashboard-critical-row");
+                },
+                columns: [
+                    { data: "incidentNumber", render: (value, type, row) => type === "display" ? '<a href="' + element.dataset.details + '/' + encodeURIComponent(row.id) + '">' + esc.display(value) + '</a>' : value },
+                    { data: "createdAt", render: value => esc.display(new Date(value).toLocaleString()) },
+                    { data: "title", render: esc },
+                    { data: "departmentName", render: esc },
+                    { data: "priority", render: value => esc.display(value === 1 ? "حرجة" : value === 2 ? "عاجلة جداً" : "عاجلة") },
+                    { data: "status", render: value => esc.display(({ 0: "وارد", 1: "مفتوح", 2: "مسدد", 3: "مغلق" })[value] ?? "غير معروف") },
+                    { data: "responsibleOfficerName", render: value => esc.display(value ?? "—") },
+                    { data: "lastAction", render: value => esc.display(value ?? "—") }
+                ]
+            });
+        })();
+    </script>
+}
 
 
 
